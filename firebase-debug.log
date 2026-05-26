@@ -1,0 +1,73 @@
+[debug] [2026-05-26T15:12:03.965Z] ----------------------------------------------------------------------
+[debug] [2026-05-26T15:12:03.973Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\USER\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js apps:list --project click-klinik --json
+[debug] [2026-05-26T15:12:03.974Z] CLI Version:   14.7.0
+[debug] [2026-05-26T15:12:03.975Z] Platform:      win32
+[debug] [2026-05-26T15:12:03.975Z] Node Version:  v24.11.1
+[debug] [2026-05-26T15:12:03.975Z] Time:          Tue May 26 2026 23:12:03 GMT+0800 (Philippine Standard Time)
+[debug] [2026-05-26T15:12:03.976Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-26T15:12:03.978Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-05-26T15:12:04.032Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-26T15:12:04.033Z] > authorizing via signed-in user (jorellandrei23@gmail.com)
+[debug] [2026-05-26T15:12:04.039Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:12:04.039Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:12:04.040Z] > refreshing access token with scopes: []
+[debug] [2026-05-26T15:12:04.042Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-26T15:12:04.042Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:12:04.280Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-26T15:12:04.280Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:12:04.281Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps pageSize=100
+[debug] [2026-05-26T15:12:04.489Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps 401
+[debug] [2026-05-26T15:12:04.489Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps {"error":{"code":401,"message":"Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.","status":"UNAUTHENTICATED"}}
+[debug] [2026-05-26T15:12:04.490Z] Got a 401 Unauthenticated error for a call that required authentication. Refreshing tokens.
+[debug] [2026-05-26T15:12:04.490Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:12:04.490Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:12:04.490Z] > refreshing access token with scopes: []
+[debug] [2026-05-26T15:12:04.491Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-26T15:12:04.491Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:12:04.582Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-26T15:12:04.582Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:12:04.583Z] Request to https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps?pageSize=100 had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[debug] [2026-05-26T15:12:04.704Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-05-26T15:12:04.704Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-05-26T15:12:04.779Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps?pageSize=100 had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at responseToError (C:\Users\USER\AppData\Roaming\npm\node_modules\firebase-tools\lib\responseToError.js:52:12)
+    at RetryOperation._fn (C:\Users\USER\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:312:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[error] 
+[error] Error: Failed to list Firebase apps. See firebase-debug.log for more info.
+[debug] [2026-05-26T15:16:26.756Z] ----------------------------------------------------------------------
+[debug] [2026-05-26T15:16:26.759Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\USER\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js apps:list --project click-klinik --json
+[debug] [2026-05-26T15:16:26.759Z] CLI Version:   14.7.0
+[debug] [2026-05-26T15:16:26.759Z] Platform:      win32
+[debug] [2026-05-26T15:16:26.759Z] Node Version:  v24.11.1
+[debug] [2026-05-26T15:16:26.759Z] Time:          Tue May 26 2026 23:16:26 GMT+0800 (Philippine Standard Time)
+[debug] [2026-05-26T15:16:26.760Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-26T15:16:26.765Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-26T15:16:26.765Z] > authorizing via signed-in user (jorellandrei23@gmail.com)
+[debug] [2026-05-26T15:16:26.769Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:16:26.769Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:16:26.770Z] > refreshing access token with scopes: []
+[debug] [2026-05-26T15:16:26.771Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-26T15:16:26.771Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:16:26.981Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-26T15:16:26.982Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:16:26.982Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps pageSize=100
+[debug] [2026-05-26T15:16:27.177Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps 401
+[debug] [2026-05-26T15:16:27.178Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps {"error":{"code":401,"message":"Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.","status":"UNAUTHENTICATED"}}
+[debug] [2026-05-26T15:16:27.178Z] Got a 401 Unauthenticated error for a call that required authentication. Refreshing tokens.
+[debug] [2026-05-26T15:16:27.178Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:16:27.178Z] Checked if tokens are valid: false, expires at: 1749965201194
+[debug] [2026-05-26T15:16:27.178Z] > refreshing access token with scopes: []
+[debug] [2026-05-26T15:16:27.179Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-26T15:16:27.179Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:16:27.253Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-26T15:16:27.253Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-26T15:16:27.254Z] Request to https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps?pageSize=100 had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[debug] [2026-05-26T15:16:27.520Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/click-klinik:searchApps?pageSize=100 had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at responseToError (C:\Users\USER\AppData\Roaming\npm\node_modules\firebase-tools\lib\responseToError.js:52:12)
+    at RetryOperation._fn (C:\Users\USER\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:312:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[error] 
+[error] Error: Failed to list Firebase apps. See firebase-debug.log for more info.
