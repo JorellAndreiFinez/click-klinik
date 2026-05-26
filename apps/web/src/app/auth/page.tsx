@@ -4,7 +4,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FirebaseError } from "firebase/app";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import {
   ArrowLeft,
   ArrowRight,
@@ -72,6 +72,26 @@ export default function PatientLoginPage() {
     }
   }
 
+  async function handleGoogleLogin() {
+    setBusy(true);
+    setNotice(null);
+
+    try {
+      const credential = await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+      if (role === "patient") {
+        await getMyPatientProfile(credential.user);
+        router.push("/patient/portal");
+        return;
+      }
+      setSignedInName(credential.user.displayName ?? "Doctor");
+      setNotice({ kind: "success", message: t.doctorSuccess });
+    } catch (error) {
+      setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <div className="clinic-grid min-h-screen px-4 py-4 sm:px-6 sm:py-6 xl:flex xl:items-center xl:px-8">
@@ -101,7 +121,7 @@ export default function PatientLoginPage() {
 
                 <RoleSelector role={role} onChange={chooseRole} copy={t} />
 
-                <LoginForm busy={busy} disabled={!firebaseConfigured} onSubmit={handleLogin} signedInName={signedInName} copy={t} role={role} />
+                <LoginForm busy={busy} disabled={!firebaseConfigured} onSubmit={handleLogin} onGoogleLogin={handleGoogleLogin} signedInName={signedInName} copy={t} role={role} />
 
                 {!signedInName && (
                   <div className="mt-8 rounded-2xl border border-primary/10 bg-[#f6f0e4] p-5 text-center">
@@ -267,6 +287,7 @@ function LoginForm({
   busy,
   disabled,
   onSubmit,
+  onGoogleLogin,
   signedInName,
   copy,
   role,
@@ -274,6 +295,7 @@ function LoginForm({
   busy: boolean;
   disabled: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onGoogleLogin: () => Promise<void>;
   signedInName: string;
   copy: PatientLoginCopy;
   role: LoginRole;
@@ -296,27 +318,38 @@ function LoginForm({
   }
 
   return (
-    <form className="mt-8 grid gap-5" onSubmit={onSubmit}>
-      <Field label={copy.email}>
-        <Input required name="email" type="email" placeholder="you@email.com" className="h-12 rounded-xl bg-background" />
-      </Field>
-      <Field label={copy.password}>
-        <PasswordInput visible={visible} onToggle={() => setVisible((current) => !current)} copy={copy} />
-      </Field>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-        <label className="flex items-center gap-2 text-muted-foreground">
-          <input type="checkbox" className="accent-primary" />
-          {copy.remember}
-        </label>
-        <button type="button" className="font-semibold text-primary hover:underline">
-          {copy.forgot}
-        </button>
-      </div>
-      <Button disabled={busy || disabled} className="mt-1 h-12 w-full rounded-xl text-base">
-        {busy ? copy.submitting : role === "patient" ? copy.submit : copy.doctorSubmit}
-        {!busy && <ArrowRight className="size-4" />}
+    <div className="mt-8">
+      <Button type="button" variant="outline" disabled={busy || disabled} onClick={onGoogleLogin} className="h-12 w-full rounded-xl border-primary/15 bg-background">
+        <span className="flex size-7 items-center justify-center rounded-full bg-card text-base font-bold text-[#4285F4] shadow-sm">G</span>
+        {copy.google}
       </Button>
-    </form>
+      <div className="my-5 flex items-center gap-3 text-xs font-medium text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        {copy.emailDivider}
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <form className="grid gap-5" onSubmit={onSubmit}>
+        <Field label={copy.email}>
+          <Input required name="email" type="email" placeholder="you@email.com" className="h-12 rounded-xl bg-background" />
+        </Field>
+        <Field label={copy.password}>
+          <PasswordInput visible={visible} onToggle={() => setVisible((current) => !current)} copy={copy} />
+        </Field>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <label className="flex items-center gap-2 text-muted-foreground">
+            <input type="checkbox" className="accent-primary" />
+            {copy.remember}
+          </label>
+          <button type="button" className="font-semibold text-primary hover:underline">
+            {copy.forgot}
+          </button>
+        </div>
+        <Button disabled={busy || disabled} className="mt-1 h-12 w-full rounded-xl text-base">
+          {busy ? copy.submitting : role === "patient" ? copy.submit : copy.doctorSubmit}
+          {!busy && <ArrowRight className="size-4" />}
+        </Button>
+      </form>
+    </div>
   );
 }
 
@@ -392,6 +425,7 @@ function getAuthErrorMessage(error: unknown, copy: PatientLoginCopy): string {
     const knownErrors: Record<string, string> = {
       "auth/invalid-credential": copy.invalidCredentials,
       "auth/too-many-requests": copy.tooManyRequests,
+      "auth/popup-closed-by-user": copy.popupClosed,
     };
 
     return knownErrors[error.code] ?? copy.authError;

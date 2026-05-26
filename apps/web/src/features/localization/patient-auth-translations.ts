@@ -22,6 +22,8 @@ export type PatientLoginCopy = {
   email: string;
   password: string;
   passwordPlaceholder: string;
+  google: string;
+  emailDivider: string;
   showPassword: string;
   hidePassword: string;
   remember: string;
@@ -43,6 +45,7 @@ export type PatientLoginCopy = {
   invalidCredentials: string;
   tooManyRequests: string;
   authError: string;
+  popupClosed: string;
 };
 
 export type PatientSignupCopy = {
@@ -63,6 +66,13 @@ export type PatientSignupCopy = {
   password: string;
   passwordPlaceholder: string;
   passwordHint: string;
+  confirmPassword: string;
+  passwordPolicy: string;
+  passwordMismatch: string;
+  passwordWeak: string;
+  googlePasswordTitle: string;
+  googlePasswordDescription: string;
+  secureGoogleAccount: string;
   showPassword: string;
   hidePassword: string;
   continueMobile: string;
@@ -138,6 +148,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Password",
       passwordPlaceholder: "Enter password",
+      google: "Continue with Google",
+      emailDivider: "or use email",
       showPassword: "Show password",
       hidePassword: "Hide password",
       remember: "Remember me",
@@ -159,6 +171,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       invalidCredentials: "Email or password is incorrect.",
       tooManyRequests: "Too many attempts. Please try again later.",
       authError: "Authentication could not be completed. Please try again.",
+      popupClosed: "Google sign-in was closed before it finished.",
     },
     signup: {
       login: "Log in",
@@ -177,7 +190,14 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Create password",
       passwordPlaceholder: "Create password",
-      passwordHint: "Use at least 8 characters to help protect health records.",
+      passwordHint: "Use a strong password to help protect health records.",
+      confirmPassword: "Retype password",
+      passwordPolicy: "At least 12 characters with uppercase, lowercase, a number, and a special character.",
+      passwordMismatch: "Passwords do not match.",
+      passwordWeak: "Password must meet all security requirements.",
+      googlePasswordTitle: "Secure your patient account",
+      googlePasswordDescription: "Set a password after Google signup so you can also securely log in with email.",
+      secureGoogleAccount: "Save password and continue",
       showPassword: "Show password",
       hidePassword: "Hide password",
       continueMobile: "Continue to contact number",
@@ -247,6 +267,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Password",
       passwordPlaceholder: "Ilagay ang password",
+      google: "Magpatuloy gamit ang Google",
+      emailDivider: "o gumamit ng email",
       showPassword: "Ipakita ang password",
       hidePassword: "Itago ang password",
       remember: "Tandaan ako",
@@ -268,6 +290,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       invalidCredentials: "Mali ang email o password.",
       tooManyRequests: "Masyadong maraming pagtatangka. Subukan muli mamaya.",
       authError: "Hindi natapos ang login. Subukan muli.",
+      popupClosed: "Isinara ang Google login bago ito natapos.",
     },
     signup: {
       login: "Mag-login",
@@ -286,7 +309,14 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Gumawa ng password",
       passwordPlaceholder: "Gumawa ng password",
-      passwordHint: "Gumamit ng hindi bababa sa 8 character para protektahan ang health records.",
+      passwordHint: "Gumamit ng matibay na password para protektahan ang health records.",
+      confirmPassword: "Ulitin ang password",
+      passwordPolicy: "Hindi bababa sa 12 character na may malaking letra, maliit na letra, numero, at special character.",
+      passwordMismatch: "Hindi magkapareho ang passwords.",
+      passwordWeak: "Dapat matugunan ng password ang lahat ng security requirements.",
+      googlePasswordTitle: "Protektahan ang patient account",
+      googlePasswordDescription: "Gumawa ng password pagkatapos ng Google signup upang makapag-login din gamit ang email.",
+      secureGoogleAccount: "I-save ang password at magpatuloy",
       showPassword: "Ipakita ang password",
       hidePassword: "Itago ang password",
       continueMobile: "Magpatuloy sa contact number",
@@ -356,6 +386,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Password",
       passwordPlaceholder: "Isulod ang password",
+      google: "Padayon gamit ang Google",
+      emailDivider: "o gamita ang email",
       showPassword: "Ipakita ang password",
       hidePassword: "Tagoa ang password",
       remember: "Hinumdomi ko",
@@ -377,6 +409,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       invalidCredentials: "Sayop ang email o password.",
       tooManyRequests: "Daghan kaayong pagsulay. Sulayi pag-usab unya.",
       authError: "Wala makompleto ang login. Sulayi pag-usab.",
+      popupClosed: "Nasira ang Google login sa wala pa mahuman.",
     },
     signup: {
       login: "Log in",
@@ -395,7 +428,14 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Paghimo og password",
       passwordPlaceholder: "Paghimo og password",
-      passwordHint: "Gamita ang labing menos 8 ka karakter aron mapanalipdan ang health records.",
+      passwordHint: "Gamita ang lig-on nga password aron mapanalipdan ang health records.",
+      confirmPassword: "Usba ang password",
+      passwordPolicy: "Labing menos 12 ka karakter nga adunay dako ug gamay nga letra, numero, ug espesyal nga karakter.",
+      passwordMismatch: "Dili parehas ang passwords.",
+      passwordWeak: "Kinahanglan matuman sa password ang tanang security requirements.",
+      googlePasswordTitle: "Panaldipi ang patient account",
+      googlePasswordDescription: "Paghimo og password human sa Google signup aron maka-login usab pinaagi sa email.",
+      secureGoogleAccount: "Tipigi ang password ug padayon",
       showPassword: "Ipakita ang password",
       hidePassword: "Tagoa ang password",
       continueMobile: "Padayon sa contact number",
@@ -465,6 +505,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Password",
       passwordPlaceholder: "Ikabil ti password",
+      google: "Ituloy babaen iti Google",
+      emailDivider: "wenno usaren ti email",
       showPassword: "Ipakita ti password",
       hidePassword: "Ilemmeng ti password",
       remember: "Laglagipennak",
@@ -486,6 +528,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       invalidCredentials: "Biddut ti email wenno password.",
       tooManyRequests: "Adu unay ti panangpadas. Padasen manen inton madamdama.",
       authError: "Saan a nalpas ti login. Padasen manen.",
+      popupClosed: "Na-close ti Google login sakbay a nalpas.",
     },
     signup: {
       login: "Ag-login",
@@ -504,7 +547,14 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       email: "Email address",
       password: "Mangaramid iti password",
       passwordPlaceholder: "Mangaramid iti password",
-      passwordHint: "Usaren ti di nakurang a 8 a karakter tapno masalakniban dagiti health records.",
+      passwordHint: "Usaren ti napigsa a password tapno masalakniban dagiti health records.",
+      confirmPassword: "Uliten ti password",
+      passwordPolicy: "Saan a basbassit ngem 12 a karakter nga addaan iti dakkel ken bassit a letra, numero, ken special character.",
+      passwordMismatch: "Saan nga agpapada dagiti password.",
+      passwordWeak: "Masapul a tungpalen ti password amin a security requirements.",
+      googlePasswordTitle: "Salakniban ti patient account",
+      googlePasswordDescription: "Mangaramid iti password kalpasan ti Google signup tapno maka-login met babaen iti email.",
+      secureGoogleAccount: "Idulin ti password ken agtuloy",
       showPassword: "Ipakita ti password",
       hidePassword: "Ilemmeng ti password",
       continueMobile: "Ituloy iti contact number",

@@ -4,8 +4,10 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { FirebaseError } from "firebase/app";
 import {
+  EmailAuthProvider,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  linkWithCredential,
   signInWithPopup,
   updateProfile,
 } from "firebase/auth";
@@ -31,7 +33,7 @@ import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import { checkPatientMobileAvailability, saveMyPatientProfile } from "@/lib/patient-api";
 
 type Notice = { kind: "error" | "success"; message: string } | null;
-type SignUpStep = "account" | "mobile" | "profile" | "verified";
+type SignUpStep = "account" | "password" | "mobile" | "profile" | "verified";
 
 export default function PatientSignUpPage() {
   const { locale } = useLocale();
@@ -42,6 +44,7 @@ export default function PatientSignUpPage() {
   const [step, setStep] = useState<SignUpStep>("account");
   const [busy, setBusy] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
 
   function startMobileRegistration(name: string) {
     setPatientName(name);
@@ -61,8 +64,10 @@ export default function PatientSignUpPage() {
     const fullName = String(form.get("fullName") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
+    const confirmPassword = String(form.get("confirmPassword") ?? "");
 
     try {
+      validatePatientPassword(password, confirmPassword, t);
       const auth = getFirebaseAuth();
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(credential.user, { displayName: fullName });
@@ -80,7 +85,39 @@ export default function PatientSignUpPage() {
 
     try {
       const credential = await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
-      startMobileRegistration(credential.user.displayName ?? "Patient");
+      if (!credential.user.email) {
+        throw new Error(t.onboardingError);
+      }
+      setPatientName(credential.user.displayName ?? "Patient");
+      setGoogleEmail(credential.user.email);
+      setStep("password");
+      setNotice(null);
+    } catch (error) {
+      setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGooglePasswordSetup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setNotice(null);
+
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") ?? "");
+    const confirmPassword = String(form.get("confirmPassword") ?? "");
+
+    try {
+      validatePatientPassword(password, confirmPassword, t);
+
+      const user = getFirebaseAuth().currentUser;
+      if (!user || !googleEmail) {
+        throw new Error(t.expiredError);
+      }
+
+      await linkWithCredential(user, EmailAuthProvider.credential(googleEmail, password));
+      startMobileRegistration(patientName || "Patient");
     } catch (error) {
       setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
     } finally {
@@ -195,6 +232,14 @@ export default function PatientSignUpPage() {
                 {step === "account" && (
                   <AccountForm busy={busy} disabled={!firebaseConfigured} onEmailSignUp={handleEmailSignUp} onGoogleSignUp={handleGoogleSignUp} copy={t} />
                 )}
+                {step === "password" && (
+                  <GooglePasswordSetup
+                    busy={busy}
+                    email={googleEmail}
+                    onSubmit={handleGooglePasswordSetup}
+                    copy={t}
+                  />
+                )}
                 {step === "mobile" && (
                   <MobileRegistration
                     busy={busy}
@@ -246,7 +291,7 @@ function OnboardingGuide({ step, copy }: { step: SignUpStep; copy: PatientSignup
           {copy.sideDescription}
         </p>
         <div className="mt-10 space-y-3">
-          <GuideItem done={step !== "account"} icon={<UserRoundPlus />} title={copy.guideItems[0]} />
+          <GuideItem done={step === "mobile" || step === "profile" || step === "verified"} icon={<UserRoundPlus />} title={copy.guideItems[0]} />
           <GuideItem done={step === "profile" || step === "verified"} icon={<Phone />} title={copy.guideItems[1]} />
           <GuideItem done={step === "verified"} icon={<ShieldCheck />} title={copy.guideItems[2]} />
         </div>
@@ -283,6 +328,7 @@ function AccountForm({
   copy: PatientSignupCopy;
 }) {
   const [visible, setVisible] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   return (
     <div className="mt-7">
@@ -303,15 +349,54 @@ function AccountForm({
           <Input required name="email" type="email" placeholder="you@email.com" className="h-12 rounded-xl bg-background" />
         </Field>
         <Field label={copy.password}>
-          <PasswordInput visible={visible} onToggle={() => setVisible((value) => !value)} copy={copy} />
+          <PasswordInput name="password" visible={visible} onToggle={() => setVisible((value) => !value)} copy={copy} />
         </Field>
-        <p className="-mt-1 text-xs text-muted-foreground">{copy.passwordHint}</p>
+        <Field label={copy.confirmPassword}>
+          <PasswordInput name="confirmPassword" visible={confirmVisible} onToggle={() => setConfirmVisible((value) => !value)} copy={copy} />
+        </Field>
+        <PasswordPolicy copy={copy} />
         <Button disabled={busy || disabled} className="mt-1 h-12 w-full rounded-xl">
           {busy ? copy.creating : copy.continueMobile}
           {!busy && <ArrowRight className="size-4" />}
         </Button>
       </form>
     </div>
+  );
+}
+
+function GooglePasswordSetup({
+  busy,
+  email,
+  onSubmit,
+  copy,
+}: {
+  busy: boolean;
+  email: string;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  copy: PatientSignupCopy;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+
+  return (
+    <form className="mt-7 grid gap-4" onSubmit={onSubmit}>
+      <div className="rounded-xl bg-primary/5 p-4">
+        <h2 className="text-sm font-bold">{copy.googlePasswordTitle}</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{copy.googlePasswordDescription}</p>
+        <p className="mt-3 text-xs font-semibold text-primary">{email}</p>
+      </div>
+      <Field label={copy.password}>
+        <PasswordInput name="password" visible={visible} onToggle={() => setVisible((value) => !value)} copy={copy} />
+      </Field>
+      <Field label={copy.confirmPassword}>
+        <PasswordInput name="confirmPassword" visible={confirmVisible} onToggle={() => setConfirmVisible((value) => !value)} copy={copy} />
+      </Field>
+      <PasswordPolicy copy={copy} />
+      <Button disabled={busy} className="mt-1 h-12 w-full rounded-xl">
+        {busy ? copy.creating : copy.secureGoogleAccount}
+        {!busy && <ArrowRight className="size-4" />}
+      </Button>
+    </form>
   );
 }
 
@@ -368,7 +453,7 @@ function VerifiedPatient({ name, copy }: { name: string; copy: PatientSignupCopy
 }
 
 function SignUpProgress({ step, copy }: { step: SignUpStep; copy: PatientSignupCopy }) {
-  const currentStep = step === "account" ? 1 : step === "mobile" ? 2 : 3;
+  const currentStep = step === "account" || step === "password" ? 1 : step === "mobile" ? 2 : 3;
 
   return (
     <div className="relative mt-7 grid grid-cols-3 gap-2" aria-label={`Step ${currentStep} of 3`}>
@@ -478,11 +563,29 @@ function ConsentInput({
   );
 }
 
-function PasswordInput({ visible, onToggle, copy }: { visible: boolean; onToggle: () => void; copy: PatientSignupCopy }) {
+function PasswordPolicy({ copy }: { copy: PatientSignupCopy }) {
+  return (
+    <p className="-mt-1 rounded-xl bg-secondary/20 px-4 py-3 text-xs leading-5 text-muted-foreground">
+      {copy.passwordPolicy}
+    </p>
+  );
+}
+
+function PasswordInput({
+  name,
+  visible,
+  onToggle,
+  copy,
+}: {
+  name: "password" | "confirmPassword";
+  visible: boolean;
+  onToggle: () => void;
+  copy: PatientSignupCopy;
+}) {
   return (
     <div className="relative min-w-0">
       <LockKeyhole className="absolute top-4 left-3.5 size-4 text-muted-foreground" />
-      <Input required name="password" type={visible ? "text" : "password"} minLength={8} placeholder={copy.passwordPlaceholder} className="h-12 rounded-xl bg-background pr-12 pl-10" />
+      <Input required name={name} type={visible ? "text" : "password"} minLength={12} placeholder={copy.passwordPlaceholder} className="h-12 rounded-xl bg-background pr-12 pl-10" />
       <button type="button" onClick={onToggle} aria-label={visible ? copy.hidePassword : copy.showPassword} className="absolute top-0 right-0 flex h-12 w-12 items-center justify-center text-muted-foreground hover:text-primary">
         {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>
@@ -537,10 +640,34 @@ function getAuthErrorMessage(error: unknown, copy: PatientSignupCopy): string {
   if (error instanceof FirebaseError) {
     const knownErrors: Record<string, string> = {
       "auth/email-already-in-use": copy.emailUsed,
+      "auth/credential-already-in-use": copy.emailUsed,
+      "auth/provider-already-linked": copy.emailUsed,
+      "auth/weak-password": copy.passwordWeak,
       "auth/popup-closed-by-user": copy.popupClosed,
       "auth/too-many-requests": copy.tooManyRequests,
     };
     return knownErrors[error.code] ?? copy.onboardingError;
   }
   return error instanceof Error ? error.message : copy.onboardingError;
+}
+
+function validatePatientPassword(
+  password: string,
+  confirmPassword: string,
+  copy: PatientSignupCopy,
+): void {
+  if (password !== confirmPassword) {
+    throw new Error(copy.passwordMismatch);
+  }
+
+  const meetsPolicy =
+    password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password);
+
+  if (!meetsPolicy) {
+    throw new Error(copy.passwordWeak);
+  }
 }

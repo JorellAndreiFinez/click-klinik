@@ -58,8 +58,8 @@ Why:
 
 - `Firebase Authentication`
 - one clear shared login entry where a user selects `Patient` or `Doctor`
-- patient sign up using email and password or Google
-- patient login using email and password
+- patient sign up using email/password or Google, with a strong email/password credential linked after Google signup for alternate login
+- patient login using email/password or Google
 - collect a Philippine mobile number after patient sign up and prevent duplicate patient registration
 - approved doctors log in through the same authentication entry but enter the doctor workspace only after role authorization
 - backend verifies Firebase tokens before allowing access to protected APIs
@@ -76,22 +76,24 @@ Important:
 The working patient-first flow is:
 
 1. Patient creates a Firebase-authenticated account using email/password or Google.
-2. Patient adds a mobile contact number; the API checks MongoDB to prevent the same number from being registered to another patient profile.
-3. Patient completes a telehealth profile with care-relevant information:
+2. If Google signup is selected, patient creates and confirms a strong password; Firebase links the password credential to the same Google-authenticated account.
+3. Patient adds a mobile contact number; the API checks MongoDB to prevent the same number from being registered to another patient profile.
+4. Patient completes a telehealth profile with care-relevant information:
    - full name
    - birthday and sex
    - height and weight
    - emergency contact
    - allergies, existing conditions, and current medicines
    - short basic medical history
-4. Patient must accept the privacy notice and health-data processing consent before a profile is stored.
-5. Frontend sends the Firebase ID token to the NestJS API.
-6. API verifies the Firebase ID token before storing or retrieving a patient profile in MongoDB.
-7. Returning patients log in and load only their own patient portal profile through the protected API.
+5. Patient must accept the privacy notice and health-data processing consent before a profile is stored.
+6. Frontend sends the Firebase ID token to the NestJS API.
+7. API verifies the Firebase ID token before storing or retrieving a patient profile in MongoDB.
+8. Returning patients log in through email/password or Google and load only their own patient portal profile through the protected API.
 
 Implementation boundary:
 
 - Firebase stores authentication identity through email/password or Google sign-in.
+- Password policy for new patient credentials: at least 12 characters with uppercase, lowercase, number, and special character, with confirmation matching.
 - MongoDB stores the patient telehealth profile.
 - The API uses the Firebase-authenticated `uid` as the patient identity anchor.
 - The frontend cannot choose another patient's `uid` or directly access the database.
