@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fffaf0;
+  --foreground: #08233a;
+  --card: #ffffff;
+  --card-foreground: #08233a;
+  --popover: #ffffff;
+  --popover-foreground: #08233a;
+  --primary: #082b45;
+  --primary-foreground: #fffaf0;
+  --secondary: #f7d536;
+  --secondary-foreground: #08233a;
+  --muted: #f0eadc;
+  --muted-foreground: #516678;
+  --accent: #f0644b;
+  --accent-foreground: #ffffff;
+  --destructive: #cf3f39;
+  --border: #d6d1c5;
+  --input: #d6d1c5;
+  --ring: #196d83;
+  --radius: 1rem;
+  --radius-md: 0.75rem;
+  --heading: "Aptos Display", "Trebuchet MS", sans-serif;
+  --body: "Aptos", "Trebuchet MS", "Verdana", sans-serif;
+  --mono: "Cascadia Mono", "Lucida Console", monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--body);
+  --font-heading: var(--heading);
+  --font-mono: var(--mono);
+  --radius-lg: var(--radius);
+  --radius-md: var(--radius-md);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--body);
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  content: "";
+  background:
+    radial-gradient(circle at 8% 8%, rgb(247 213 54 / 18%), transparent 25%),
+    radial-gradient(circle at 92% 40%, rgb(240 100 75 / 9%), transparent 23%),
+    linear-gradient(180deg, #fffdf5 0%, #fffaf0 52%, #f5f1e7 100%);
+}
+
+::selection {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.language-picker {
+  display: inline-flex;
+  height: 2.75rem;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgb(8 43 69 / 15%);
+  padding: 0 0.65rem;
+  color: var(--foreground);
+  background: var(--card);
+}
+
+.language-picker select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  outline: 0;
+}
+
+.language-picker:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px rgb(25 109 131 / 18%);
+}
+
+.clinic-grid {
+  background-image:
+    radial-gradient(circle at 0 0, rgb(8 43 69 / 6%) 1px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+
+.landing-rise {
+  animation: landing-rise 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.landing-rise-late {
+  animation: landing-rise 720ms 90ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
