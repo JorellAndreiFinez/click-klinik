@@ -61,7 +61,8 @@ export type PatientSignupCopy = {
   steps: [string, string, string];
   google: string;
   emailDivider: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
   passwordPlaceholder: string;
@@ -167,7 +168,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       doctorPrompt: "New professional? Complete verification before receiving patient consultations.",
       professionalApplication: "Professional application",
       success: "Welcome back. Your patient account is signed in.",
-      doctorSuccess: "Signed in. Doctor workspace access requires an approved professional account.",
+      doctorSuccess: "Your approved professional account is ready for doctor workspace access.",
       invalidCredentials: "Email or password is incorrect.",
       tooManyRequests: "Too many attempts. Please try again later.",
       authError: "Authentication could not be completed. Please try again.",
@@ -186,7 +187,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       steps: ["Account", "Mobile", "Ready"],
       google: "Sign up with Google",
       emailDivider: "or use email",
-      fullName: "Full name",
+      firstName: "First name",
+      lastName: "Last name",
       email: "Email address",
       password: "Create password",
       passwordPlaceholder: "Create password",
@@ -286,7 +288,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       doctorPrompt: "Bagong propesyonal? Kumpletuhin muna ang verification bago tumanggap ng konsultasyon.",
       professionalApplication: "Application ng propesyonal",
       success: "Maligayang pagbabalik. Naka-login na ang iyong patient account.",
-      doctorSuccess: "Naka-login na. Kailangan ng aprubadong professional account para sa doctor workspace.",
+      doctorSuccess: "Aprubado na ang iyong professional account at handa na para sa doctor workspace.",
       invalidCredentials: "Mali ang email o password.",
       tooManyRequests: "Masyadong maraming pagtatangka. Subukan muli mamaya.",
       authError: "Hindi natapos ang login. Subukan muli.",
@@ -305,7 +307,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       steps: ["Account", "Mobile", "Handa"],
       google: "Mag-sign up gamit ang Google",
       emailDivider: "o gumamit ng email",
-      fullName: "Buong pangalan",
+      firstName: "Pangalan",
+      lastName: "Apelyido",
       email: "Email address",
       password: "Gumawa ng password",
       passwordPlaceholder: "Gumawa ng password",
@@ -405,7 +408,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       doctorPrompt: "Bag-ong professional? Kompletoha una ang verification sa dili pa modawat og konsultasyon.",
       professionalApplication: "Professional application",
       success: "Maayong pagbalik. Naka-login na ang imong patient account.",
-      doctorSuccess: "Naka-login na. Kinahanglan og aprobahan nga professional account para sa doctor workspace.",
+      doctorSuccess: "Aprobado na ang imong professional account ug andam na para sa doctor workspace.",
       invalidCredentials: "Sayop ang email o password.",
       tooManyRequests: "Daghan kaayong pagsulay. Sulayi pag-usab unya.",
       authError: "Wala makompleto ang login. Sulayi pag-usab.",
@@ -424,7 +427,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       steps: ["Account", "Mobile", "Andam"],
       google: "Sign up gamit ang Google",
       emailDivider: "o gamita ang email",
-      fullName: "Kompletong ngalan",
+      firstName: "Unang ngalan",
+      lastName: "Apelyido",
       email: "Email address",
       password: "Paghimo og password",
       passwordPlaceholder: "Paghimo og password",
@@ -524,7 +528,7 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       doctorPrompt: "Baro a propesional? Leppasen pay ti verification sakbay nga umawat iti konsultasion.",
       professionalApplication: "Professional application",
       success: "Naimbag a panagsubli. Naka-loginen ti patient account mo.",
-      doctorSuccess: "Naka-loginen. Kasapulan ti naaprobaran a professional account para iti doctor workspace.",
+      doctorSuccess: "Naaprobaranen ti professional account mo ken nakasagana para iti doctor workspace.",
       invalidCredentials: "Biddut ti email wenno password.",
       tooManyRequests: "Adu unay ti panangpadas. Padasen manen inton madamdama.",
       authError: "Saan a nalpas ti login. Padasen manen.",
@@ -543,7 +547,8 @@ export const patientAuthTranslations: Record<Locale, PatientAuthCopy> = {
       steps: ["Account", "Mobile", "Nakasagana"],
       google: "Ag-sign up babaen iti Google",
       emailDivider: "wenno usaren ti email",
-      fullName: "Nagan a kompleto",
+      firstName: "Nagan",
+      lastName: "Apelyido",
       email: "Email address",
       password: "Mangaramid iti password",
       passwordPlaceholder: "Mangaramid iti password",

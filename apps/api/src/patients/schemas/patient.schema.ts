@@ -12,9 +12,21 @@ export class Patient {
   role!: 'patient';
 
   @Prop({ required: true, trim: true })
-  fullName!: string;
+  firstName!: string;
 
-  @Prop({ required: true, lowercase: true, trim: true })
+  @Prop({ required: true, trim: true })
+  lastName!: string;
+
+  @Prop({ trim: true })
+  suffix?: string;
+
+  @Prop({
+    required: true,
+    lowercase: true,
+    trim: true,
+    unique: true,
+    index: true,
+  })
   email!: string;
 
   @Prop({ required: true, unique: true, index: true })
@@ -49,6 +61,30 @@ export class Patient {
 
   @Prop({ trim: true })
   basicMedicalHistory?: string;
+
+  @Prop({ required: true, trim: true })
+  regionCode!: string;
+
+  @Prop({ required: true, trim: true })
+  regionName!: string;
+
+  @Prop({ trim: true })
+  provinceCode?: string;
+
+  @Prop({ trim: true })
+  provinceName?: string;
+
+  @Prop({ required: true, trim: true })
+  cityMunicipalityCode!: string;
+
+  @Prop({ required: true, trim: true, index: true })
+  cityMunicipalityName!: string;
+
+  @Prop({ required: true, trim: true })
+  barangayCode!: string;
+
+  @Prop({ required: true, trim: true })
+  barangayName!: string;
 
   @Prop({ required: true, default: false })
   privacyPolicyAccepted!: boolean;

@@ -70,6 +70,7 @@ Important:
 - core telehealth workflows, business logic, and database access still remain in the custom backend
 - doctor applications use a separate onboarding and credential-verification process, not the patient sign-up screen
 - selecting `Doctor` in the UI does not grant doctor permissions; the backend must enforce an approved doctor role before protected doctor access
+- superadmin access is separate from doctor applications; a verified Firebase email must be allowlisted on the API server before it can approve or reject doctors
 
 ### Implemented Patient Authentication and Profile Flow
 
@@ -549,6 +550,14 @@ These features help differentiate the app beyond the required MVP:
   - newly booked appointments
   - upcoming appointments
   - schedule updates or changes
+
+**MVP implementation note**
+
+- Implement now: approved doctors can create available slots, add blocked/unavailable periods, switch open/blocked status, and remove unbooked periods from the doctor dashboard.
+- Implement now: MongoDB stores the doctor schedule and in-app schedule-change notifications; the dashboard refreshes notification updates regularly for the demo.
+- Implement now: patients can discover approved public doctors, review real availability, open a booking calendar, choose a time slot, and save a consultation in both patient and doctor dashboards.
+- Implement now: appointment booking stores consultation records in MongoDB and uses Google Calendar / Google Meet integration hooks so the meeting link and calendar event details are saved with the appointment.
+- Safety rule: only an approved doctor account may manage its own availability; booked time periods must not be overwritten as unavailable.
 
 ### Consultation Notes and Prescriptions
 

@@ -2,7 +2,9 @@ import type { User } from "firebase/auth";
 
 export type PatientProfile = {
   _id: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  suffix?: string;
   email: string;
   mobileNumber: string;
   birthdate: string;
@@ -15,6 +17,14 @@ export type PatientProfile = {
   existingConditions: string[];
   currentMedications: string[];
   basicMedicalHistory?: string;
+  regionCode: string;
+  regionName: string;
+  provinceCode?: string;
+  provinceName?: string;
+  cityMunicipalityCode: string;
+  cityMunicipalityName: string;
+  barangayCode: string;
+  barangayName: string;
   privacyPolicyAccepted: boolean;
   healthDataProcessingAccepted: boolean;
   aiAssistanceAccepted: boolean;
@@ -36,6 +46,12 @@ export async function saveMyPatientProfile(
   return patientRequest<PatientProfile>(user, "/patients/me", {
     method: "POST",
     body: JSON.stringify(profile),
+  });
+}
+
+export async function checkPatientSignupEligibility(user: User): Promise<void> {
+  await patientRequest<{ available: true }>(user, "/patients/signup-eligibility", {
+    method: "POST",
   });
 }
 

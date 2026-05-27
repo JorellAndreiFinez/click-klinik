@@ -26,11 +26,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhAddressFields } from "@/components/forms/ph-address-fields";
 import { LanguageSelector } from "@/features/localization/language-selector";
 import { useLocale } from "@/features/localization/locale-provider";
 import { patientAuthTranslations, type PatientSignupCopy } from "@/features/localization/patient-auth-translations";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
-import { checkPatientMobileAvailability, saveMyPatientProfile } from "@/lib/patient-api";
+import { checkPatientMobileAvailability, checkPatientSignupEligibility, saveMyPatientProfile } from "@/lib/patient-api";
 
 type Notice = { kind: "error" | "success"; message: string } | null;
 type SignUpStep = "account" | "password" | "mobile" | "profile" | "verified";
@@ -40,14 +41,16 @@ export default function PatientSignUpPage() {
   const t = patientAuthTranslations[locale].signup;
   const firebaseConfigured = isFirebaseConfigured();
   const [notice, setNotice] = useState<Notice>(null);
-  const [patientName, setPatientName] = useState("");
+  const [patientFirstName, setPatientFirstName] = useState("");
+  const [patientLastName, setPatientLastName] = useState("");
   const [step, setStep] = useState<SignUpStep>("account");
   const [busy, setBusy] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [googleEmail, setGoogleEmail] = useState("");
 
-  function startMobileRegistration(name: string) {
-    setPatientName(name);
+  function startMobileRegistration(firstName: string, lastName: string) {
+    setPatientFirstName(firstName);
+    setPatientLastName(lastName);
     setStep("mobile");
     setNotice({
       kind: "success",
@@ -61,7 +64,8 @@ export default function PatientSignUpPage() {
     setNotice(null);
 
     const form = new FormData(event.currentTarget);
-    const fullName = String(form.get("fullName") ?? "").trim();
+    const firstName = String(form.get("firstName") ?? "").trim();
+    const lastName = String(form.get("lastName") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const confirmPassword = String(form.get("confirmPassword") ?? "");
@@ -70,8 +74,9 @@ export default function PatientSignUpPage() {
       validatePatientPassword(password, confirmPassword, t);
       const auth = getFirebaseAuth();
       const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(credential.user, { displayName: fullName });
-      startMobileRegistration(fullName || "Patient");
+      await checkPatientSignupEligibility(credential.user);
+      await updateProfile(credential.user, { displayName: `${firstName} ${lastName}`.trim() });
+      startMobileRegistration(firstName || "Patient", lastName);
     } catch (error) {
       setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
     } finally {
@@ -88,7 +93,10 @@ export default function PatientSignUpPage() {
       if (!credential.user.email) {
         throw new Error(t.onboardingError);
       }
-      setPatientName(credential.user.displayName ?? "Patient");
+      await checkPatientSignupEligibility(credential.user);
+      const parsedName = splitDisplayName(credential.user.displayName);
+      setPatientFirstName(parsedName.firstName);
+      setPatientLastName(parsedName.lastName);
       setGoogleEmail(credential.user.email);
       setStep("password");
       setNotice(null);
@@ -117,7 +125,7 @@ export default function PatientSignUpPage() {
       }
 
       await linkWithCredential(user, EmailAuthProvider.credential(googleEmail, password));
-      startMobileRegistration(patientName || "Patient");
+      startMobileRegistration(patientFirstName || "Patient", patientLastName);
     } catch (error) {
       setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
     } finally {
@@ -168,7 +176,9 @@ export default function PatientSignUpPage() {
       }
 
       await saveMyPatientProfile(user, {
-        fullName: String(form.get("fullName") ?? "").trim(),
+        firstName: String(form.get("firstName") ?? "").trim(),
+        lastName: String(form.get("lastName") ?? "").trim(),
+        suffix: String(form.get("suffix") ?? "").trim() || undefined,
         mobileNumber: phoneNumber,
         birthdate: String(form.get("birthdate") ?? ""),
         sex: String(form.get("sex") ?? "") as "female" | "male" | "prefer_not_to_say",
@@ -180,6 +190,14 @@ export default function PatientSignUpPage() {
         existingConditions: splitList(form.get("existingConditions")),
         currentMedications: splitList(form.get("currentMedications")),
         basicMedicalHistory: String(form.get("basicMedicalHistory") ?? "").trim(),
+        regionCode: String(form.get("regionCode") ?? "").trim(),
+        regionName: String(form.get("regionName") ?? "").trim(),
+        provinceCode: String(form.get("provinceCode") ?? "").trim() || undefined,
+        provinceName: String(form.get("provinceName") ?? "").trim() || undefined,
+        cityMunicipalityCode: String(form.get("cityMunicipalityCode") ?? "").trim(),
+        cityMunicipalityName: String(form.get("cityMunicipalityName") ?? "").trim(),
+        barangayCode: String(form.get("barangayCode") ?? "").trim(),
+        barangayName: String(form.get("barangayName") ?? "").trim(),
         privacyPolicyAccepted,
         healthDataProcessingAccepted,
         aiAssistanceAccepted: form.get("aiAssistanceAccepted") === "on",
@@ -252,12 +270,13 @@ export default function PatientSignUpPage() {
                 {step === "profile" && (
                   <HealthProfileForm
                     busy={busy}
-                    patientName={patientName}
+                    patientFirstName={patientFirstName}
+                    patientLastName={patientLastName}
                     copy={t}
                     onSubmit={handleSaveProfile}
                   />
                 )}
-                {step === "verified" && <VerifiedPatient name={patientName} copy={t} />}
+                {step === "verified" && <VerifiedPatient name={patientFirstName} copy={t} />}
 
                 {step === "account" && (
                   <p className="mt-7 border-t border-border pt-5 text-center text-sm text-muted-foreground">
@@ -342,16 +361,21 @@ function AccountForm({
         <span className="h-px flex-1 bg-border" />
       </div>
       <form className="grid gap-4" onSubmit={onEmailSignUp}>
-        <Field label={copy.fullName}>
-          <Input required name="fullName" placeholder="Juan Dela Cruz" className="h-12 rounded-xl bg-background" />
-        </Field>
-        <Field label={copy.email}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field required label={copy.firstName}>
+            <Input required name="firstName" placeholder="Juan" className="h-12 rounded-xl bg-background" />
+          </Field>
+          <Field required label={copy.lastName}>
+            <Input required name="lastName" placeholder="Dela Cruz" className="h-12 rounded-xl bg-background" />
+          </Field>
+        </div>
+        <Field required label={copy.email}>
           <Input required name="email" type="email" placeholder="you@email.com" className="h-12 rounded-xl bg-background" />
         </Field>
-        <Field label={copy.password}>
+        <Field required label={copy.password}>
           <PasswordInput name="password" visible={visible} onToggle={() => setVisible((value) => !value)} copy={copy} />
         </Field>
-        <Field label={copy.confirmPassword}>
+        <Field required label={copy.confirmPassword}>
           <PasswordInput name="confirmPassword" visible={confirmVisible} onToggle={() => setConfirmVisible((value) => !value)} copy={copy} />
         </Field>
         <PasswordPolicy copy={copy} />
@@ -385,10 +409,10 @@ function GooglePasswordSetup({
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{copy.googlePasswordDescription}</p>
         <p className="mt-3 text-xs font-semibold text-primary">{email}</p>
       </div>
-      <Field label={copy.password}>
+      <Field required label={copy.password}>
         <PasswordInput name="password" visible={visible} onToggle={() => setVisible((value) => !value)} copy={copy} />
       </Field>
-      <Field label={copy.confirmPassword}>
+      <Field required label={copy.confirmPassword}>
         <PasswordInput name="confirmPassword" visible={confirmVisible} onToggle={() => setConfirmVisible((value) => !value)} copy={copy} />
       </Field>
       <PasswordPolicy copy={copy} />
@@ -422,7 +446,7 @@ function MobileRegistration({
         </p>
       </div>
       <form className="mt-5 grid gap-4" onSubmit={onSubmit}>
-        <Field label={copy.mobileLabel}>
+        <Field required label={copy.mobileLabel}>
           <div className="flex overflow-hidden rounded-xl border border-input bg-background focus-within:ring-3 focus-within:ring-ring/45">
             <span className="flex items-center border-r border-border px-4 text-sm font-bold text-primary">+63</span>
             <input required value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder={copy.mobilePlaceholder} className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground" />
@@ -474,12 +498,14 @@ function SignUpProgress({ step, copy }: { step: SignUpStep; copy: PatientSignupC
 
 function HealthProfileForm({
   busy,
-  patientName,
+  patientFirstName,
+  patientLastName,
   copy,
   onSubmit,
 }: {
   busy: boolean;
-  patientName: string;
+  patientFirstName: string;
+  patientLastName: string;
   copy: PatientSignupCopy;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
@@ -489,48 +515,76 @@ function HealthProfileForm({
         <h2 className="text-sm font-bold">{copy.profileTitle}</h2>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{copy.profileDescription}</p>
       </div>
-      <Field label={copy.fullName}>
-        <Input required name="fullName" defaultValue={patientName} className="h-12 rounded-xl bg-background" />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={copy.birthday}>
-          <Input required name="birthdate" type="date" className="h-12 rounded-xl bg-background" />
+      <ProfileSection
+        title="Personal information"
+        description="Use your real identity and contact details so doctors can prepare your teleconsultation safely."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field required label={copy.firstName}>
+            <Input required name="firstName" defaultValue={patientFirstName} className="h-12 rounded-xl bg-background" />
+          </Field>
+          <Field required label={copy.lastName}>
+            <Input required name="lastName" defaultValue={patientLastName} className="h-12 rounded-xl bg-background" />
+          </Field>
+        </div>
+        <Field label="Suffix">
+          <Input name="suffix" placeholder="Jr., Sr., III" className="h-12 rounded-xl bg-background" />
         </Field>
-        <Field label={copy.sex}>
-          <select required name="sex" className="h-12 rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
-            <option value="">{copy.sex}</option>
-            <option value="female">{copy.female}</option>
-            <option value="male">{copy.male}</option>
-            <option value="prefer_not_to_say">{copy.preferNotToSay}</option>
-          </select>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field required label={copy.birthday}>
+            <Input required name="birthdate" type="date" className="h-12 rounded-xl bg-background" />
+          </Field>
+          <Field required label={copy.sex}>
+            <select required name="sex" className="h-12 rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+              <option value="">{copy.sex}</option>
+              <option value="female">{copy.female}</option>
+              <option value="male">{copy.male}</option>
+              <option value="prefer_not_to_say">{copy.preferNotToSay}</option>
+            </select>
+          </Field>
+        </div>
+      </ProfileSection>
+
+      <ProfileSection
+        title="Health information"
+        description="Only collect details needed to prepare safe teleconsultations."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field required label={copy.weight}>
+            <Input required name="weightKg" type="number" min="1" max="400" step="0.1" className="h-12 rounded-xl bg-background" />
+          </Field>
+          <Field required label={copy.height}>
+            <Input required name="heightCm" type="number" min="30" max="260" step="0.1" className="h-12 rounded-xl bg-background" />
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={copy.emergencyName}>
+            <Input name="emergencyContactName" className="h-12 rounded-xl bg-background" />
+          </Field>
+          <Field label={copy.emergencyNumber}>
+            <Input name="emergencyContactNumber" type="tel" className="h-12 rounded-xl bg-background" />
+          </Field>
+        </div>
+        <Field label={copy.allergies}>
+          <Input name="allergies" placeholder={copy.listHint} className="h-12 rounded-xl bg-background" />
         </Field>
-        <Field label={copy.weight}>
-          <Input required name="weightKg" type="number" min="1" max="400" step="0.1" className="h-12 rounded-xl bg-background" />
+        <Field label={copy.conditions}>
+          <Input name="existingConditions" placeholder={copy.listHint} className="h-12 rounded-xl bg-background" />
         </Field>
-        <Field label={copy.height}>
-          <Input required name="heightCm" type="number" min="30" max="260" step="0.1" className="h-12 rounded-xl bg-background" />
+        <Field label={copy.medications}>
+          <Input name="currentMedications" placeholder={copy.listHint} className="h-12 rounded-xl bg-background" />
         </Field>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={copy.emergencyName}>
-          <Input name="emergencyContactName" className="h-12 rounded-xl bg-background" />
+        <Field label={copy.medicalHistory}>
+          <textarea name="basicMedicalHistory" className="min-h-24 rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
         </Field>
-        <Field label={copy.emergencyNumber}>
-          <Input name="emergencyContactNumber" type="tel" className="h-12 rounded-xl bg-background" />
-        </Field>
-      </div>
-      <Field label={copy.allergies}>
-        <Input name="allergies" placeholder={copy.listHint} className="h-12 rounded-xl bg-background" />
-      </Field>
-      <Field label={copy.conditions}>
-        <Input name="existingConditions" placeholder={copy.listHint} className="h-12 rounded-xl bg-background" />
-      </Field>
-      <Field label={copy.medications}>
-        <Input name="currentMedications" placeholder={copy.listHint} className="h-12 rounded-xl bg-background" />
-      </Field>
-      <Field label={copy.medicalHistory}>
-        <textarea name="basicMedicalHistory" className="min-h-24 rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
-      </Field>
+      </ProfileSection>
+
+      <ProfileSection
+        title="Location details"
+        description="Select your region, city or municipality, and barangay using PSGC data."
+      >
+      <PhAddressFields />
+      </ProfileSection>
       <div className="space-y-3 rounded-xl border border-primary/10 bg-[#f6f0e4] p-4 text-xs leading-5 text-muted-foreground">
         <ConsentInput name="privacyPolicyAccepted" required label={copy.privacyConsent} />
         <ConsentInput name="healthDataProcessingAccepted" required label={copy.healthConsent} />
@@ -546,6 +600,26 @@ function HealthProfileForm({
   );
 }
 
+function ProfileSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="grid gap-4 rounded-2xl border border-primary/10 bg-card/70 p-4 sm:p-5">
+      <div className="border-b border-border pb-3">
+        <h3 className="text-sm font-bold text-foreground">{title}</h3>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function ConsentInput({
   name,
   required = false,
@@ -558,7 +632,10 @@ function ConsentInput({
   return (
     <label className="flex items-start gap-3">
       <input required={required} name={name} type="checkbox" className="mt-1 accent-primary" />
-      <span>{label}</span>
+      <span>
+        {label}
+        {required && <RequiredMark />}
+      </span>
     </label>
   );
 }
@@ -593,13 +670,28 @@ function PasswordInput({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  required = false,
+}: {
+  label: string;
+  children: ReactNode;
+  required?: boolean;
+}) {
   return (
     <label className="grid min-w-0 gap-2">
-      <span className="text-sm font-semibold">{label}</span>
+      <span className="text-sm font-semibold">
+        {label}
+        {required && <RequiredMark />}
+      </span>
       {children}
     </label>
   );
+}
+
+function RequiredMark() {
+  return <span className="ml-1 text-destructive" aria-hidden="true">*</span>;
 }
 
 function AuthNotice({ notice }: { notice: Exclude<Notice, null> }) {
@@ -634,6 +726,18 @@ function splitList(value: FormDataEntryValue | null): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function splitDisplayName(displayName: string | null): {
+  firstName: string;
+  lastName: string;
+} {
+  const parts = (displayName ?? "").trim().split(/\s+/).filter(Boolean);
+
+  return {
+    firstName: parts.shift() ?? "Patient",
+    lastName: parts.join(" "),
+  };
 }
 
 function getAuthErrorMessage(error: unknown, copy: PatientSignupCopy): string {

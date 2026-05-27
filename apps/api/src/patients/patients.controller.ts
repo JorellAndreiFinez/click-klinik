@@ -24,6 +24,13 @@ export class PatientsController {
     return this.patientsService.upsertProfile(request.user, dto);
   }
 
+  @Post('signup-eligibility')
+  checkSignupEligibility(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ available: true }> {
+    return this.patientsService.checkSignupEligibility(request.user);
+  }
+
   @Post('mobile-availability')
   checkMobileAvailability(
     @Req() request: AuthenticatedRequest,

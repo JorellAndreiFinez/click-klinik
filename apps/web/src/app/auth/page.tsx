@@ -25,6 +25,8 @@ import { LanguageSelector } from "@/features/localization/language-selector";
 import { useLocale } from "@/features/localization/locale-provider";
 import { patientAuthTranslations, type PatientLoginCopy } from "@/features/localization/patient-auth-translations";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import { getDoctorApplications } from "@/lib/admin-api";
+import { getMyApprovedDoctorAccess } from "@/lib/doctor-api";
 import { getMyPatientProfile } from "@/lib/patient-api";
 
 type Notice = { kind: "error" | "success"; message: string } | null;
@@ -46,6 +48,16 @@ export default function PatientLoginPage() {
     setSignedInName("");
   }
 
+  async function redirectIfSuperAdmin(user: Parameters<typeof getDoctorApplications>[0]) {
+    try {
+      await getDoctorApplications(user);
+      router.push("/admin");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -58,13 +70,16 @@ export default function PatientLoginPage() {
     try {
       const auth = getFirebaseAuth();
       const credential = await signInWithEmailAndPassword(auth, email, password);
+      if (await redirectIfSuperAdmin(credential.user)) {
+        return;
+      }
       if (role === "patient") {
         await getMyPatientProfile(credential.user);
         router.push("/patient/portal");
         return;
       }
-      setSignedInName(credential.user.displayName ?? "Patient");
-      setNotice({ kind: "success", message: t.doctorSuccess });
+      await getMyApprovedDoctorAccess(credential.user);
+      router.push("/doctor/dashboard");
     } catch (error) {
       setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
     } finally {
@@ -78,13 +93,16 @@ export default function PatientLoginPage() {
 
     try {
       const credential = await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+      if (await redirectIfSuperAdmin(credential.user)) {
+        return;
+      }
       if (role === "patient") {
         await getMyPatientProfile(credential.user);
         router.push("/patient/portal");
         return;
       }
-      setSignedInName(credential.user.displayName ?? "Doctor");
-      setNotice({ kind: "success", message: t.doctorSuccess });
+      await getMyApprovedDoctorAccess(credential.user);
+      router.push("/doctor/dashboard");
     } catch (error) {
       setNotice({ kind: "error", message: getAuthErrorMessage(error, t) });
     } finally {

@@ -15,8 +15,17 @@ import {
 
 export class UpsertPatientProfileDto {
   @IsString()
-  @MaxLength(120)
-  fullName!: string;
+  @MaxLength(60)
+  firstName!: string;
+
+  @IsString()
+  @MaxLength(60)
+  lastName!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  suffix?: string;
 
   @IsString()
   @Matches(/^\+639\d{9}$/, {
@@ -69,6 +78,40 @@ export class UpsertPatientProfileDto {
   @IsString()
   @MaxLength(600)
   basicMedicalHistory?: string;
+
+  @IsString()
+  @MaxLength(20)
+  regionCode!: string;
+
+  @IsString()
+  @MaxLength(120)
+  regionName!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  provinceCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  provinceName?: string;
+
+  @IsString()
+  @MaxLength(20)
+  cityMunicipalityCode!: string;
+
+  @IsString()
+  @MaxLength(120)
+  cityMunicipalityName!: string;
+
+  @IsString()
+  @MaxLength(20)
+  barangayCode!: string;
+
+  @IsString()
+  @MaxLength(120)
+  barangayName!: string;
 
   @IsBoolean()
   privacyPolicyAccepted!: boolean;

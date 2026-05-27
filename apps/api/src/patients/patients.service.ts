@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { Model } from 'mongoose';
+import { Doctor } from '../doctors/schemas/doctor.schema';
 import { UpsertPatientProfileDto } from './dto/upsert-patient-profile.dto';
 import { Patient } from './schemas/patient.schema';
 
@@ -14,6 +15,7 @@ import { Patient } from './schemas/patient.schema';
 export class PatientsService {
   constructor(
     @InjectModel(Patient.name) private readonly patientModel: Model<Patient>,
+    @InjectModel(Doctor.name) private readonly doctorModel: Model<Doctor>,
   ) {}
 
   async getProfile(user: DecodedIdToken): Promise<Patient> {
@@ -45,6 +47,8 @@ export class PatientsService {
 
     const mobileNumber = normalizePhilippineMobileNumber(dto.mobileNumber);
 
+    await this.assertPatientEmailAvailable(user.uid, email);
+    await this.assertNotRegisteredAsDoctor(user.uid, email);
     await this.assertMobileNumberAvailable(user.uid, mobileNumber);
 
     try {
@@ -54,7 +58,9 @@ export class PatientsService {
           {
             $set: {
               role: 'patient',
-              fullName: dto.fullName.trim(),
+              firstName: dto.firstName.trim(),
+              lastName: dto.lastName.trim(),
+              suffix: dto.suffix?.trim(),
               email,
               mobileNumber,
               birthdate: new Date(dto.birthdate),
@@ -67,6 +73,14 @@ export class PatientsService {
               existingConditions: sanitizeItems(dto.existingConditions),
               currentMedications: sanitizeItems(dto.currentMedications),
               basicMedicalHistory: dto.basicMedicalHistory?.trim(),
+              regionCode: dto.regionCode.trim(),
+              regionName: dto.regionName.trim(),
+              provinceCode: dto.provinceCode?.trim(),
+              provinceName: dto.provinceName?.trim(),
+              cityMunicipalityCode: dto.cityMunicipalityCode.trim(),
+              cityMunicipalityName: dto.cityMunicipalityName.trim(),
+              barangayCode: dto.barangayCode.trim(),
+              barangayName: dto.barangayName.trim(),
               privacyPolicyAccepted: dto.privacyPolicyAccepted,
               healthDataProcessingAccepted: dto.healthDataProcessingAccepted,
               aiAssistanceAccepted: dto.aiAssistanceAccepted,
@@ -81,11 +95,31 @@ export class PatientsService {
       return patient;
     } catch (error) {
       if (isMongoDuplicateKeyError(error)) {
-        throwMobileNumberConflict();
+        throw new ConflictException(
+          'This email address or mobile number is already registered.',
+        );
       }
 
       throw error;
     }
+  }
+
+  async checkSignupEligibility(
+    user: DecodedIdToken,
+  ): Promise<{ available: true }> {
+    const email = getAccountEmail(user);
+    const existingPatient = await this.patientModel
+      .exists({ $or: [{ firebaseUid: user.uid }, { email }] })
+      .exec();
+
+    if (existingPatient) {
+      throw new ConflictException(
+        'This account already has a patient profile. Please log in instead.',
+      );
+    }
+
+    await this.assertNotRegisteredAsDoctor(user.uid, email);
+    return { available: true };
   }
 
   async checkMobileAvailability(
@@ -104,15 +138,50 @@ export class PatientsService {
     firebaseUid: string,
     mobileNumber: string,
   ): Promise<void> {
-    const existingMobileOwner = await this.patientModel
+    const [existingPatientOwner, existingDoctorOwner] = await Promise.all([
+      this.patientModel
+        .exists({
+          mobileNumber,
+          firebaseUid: { $ne: firebaseUid },
+        })
+        .exec(),
+      this.doctorModel.exists({ mobileNumber }).exec(),
+    ]);
+
+    if (existingPatientOwner || existingDoctorOwner) {
+      throwMobileNumberConflict();
+    }
+  }
+
+  private async assertPatientEmailAvailable(
+    firebaseUid: string,
+    email: string,
+  ): Promise<void> {
+    const existingOwner = await this.patientModel
+      .exists({ email, firebaseUid: { $ne: firebaseUid } })
+      .exec();
+
+    if (existingOwner) {
+      throw new ConflictException(
+        'This email address is already registered to another patient account.',
+      );
+    }
+  }
+
+  private async assertNotRegisteredAsDoctor(
+    firebaseUid: string,
+    email: string,
+  ): Promise<void> {
+    const existingDoctor = await this.doctorModel
       .exists({
-        mobileNumber,
-        firebaseUid: { $ne: firebaseUid },
+        $or: [{ firebaseUid }, { professionalEmail: email.toLowerCase() }],
       })
       .exec();
 
-    if (existingMobileOwner) {
-      throwMobileNumberConflict();
+    if (existingDoctor) {
+      throw new ConflictException(
+        'This account already has a doctor application. Please use doctor login instead.',
+      );
     }
   }
 }
@@ -138,6 +207,17 @@ function normalizePhilippineMobileNumber(mobileNumber: string): string {
   }
 
   return `+63${digits}`;
+}
+
+function getAccountEmail(user: DecodedIdToken): string {
+  const email =
+    typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
+
+  if (!email) {
+    throw new BadRequestException('An account email is required.');
+  }
+
+  return email;
 }
 
 function throwMobileNumberConflict(): never {
