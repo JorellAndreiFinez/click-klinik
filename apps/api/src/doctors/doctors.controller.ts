@@ -16,6 +16,7 @@ import { CheckDoctorMobileNumberDto } from './dto/check-doctor-mobile-number.dto
 import { CreateDoctorApplicationDto } from './dto/create-doctor-application.dto';
 import { DoctorRecommendationDto } from './dto/doctor-recommendation.dto';
 import { ReviewDoctorApplicationDto } from './dto/review-doctor-application.dto';
+import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
 import { DoctorsService } from './doctors.service';
 import { Doctor } from './schemas/doctor.schema';
 import { SearchDoctorsDto } from './dto/search-doctors.dto';
@@ -34,6 +35,15 @@ export class DoctorsController {
   @UseGuards(FirebaseAuthGuard)
   getMyApprovedAccess(@Req() request: AuthenticatedRequest): Promise<Doctor> {
     return this.doctorsService.getMyApprovedAccess(request.user);
+  }
+
+  @Patch('me')
+  @UseGuards(FirebaseAuthGuard)
+  updateMyProfile(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateDoctorProfileDto,
+  ): Promise<Doctor> {
+    return this.doctorsService.updateMyProfile(request.user, dto);
   }
 
   @Get('discover')

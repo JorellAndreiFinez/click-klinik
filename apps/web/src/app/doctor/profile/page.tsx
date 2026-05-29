@@ -1,0 +1,275 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { Save } from "lucide-react";
+
+import { PhAddressFields } from "@/components/forms/ph-address-fields";
+import { Button } from "@/components/ui/button";
+import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
+import {
+  saveMyDoctorProfile,
+  type DoctorApplication,
+} from "@/lib/doctor-api";
+
+const suffixes = ["MD", "DO", "RPsy", "RPT", "Other"] as const;
+
+export default function DoctorProfilePage() {
+  const { user, doctor } = useDoctorWorkspace();
+  const [profile, setProfile] = useState<DoctorApplication | null>(doctor);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const savedLocationParts = profile
+    ? [
+        profile.barangayName,
+        profile.cityMunicipalityName,
+        profile.provinceName,
+        profile.regionName,
+      ].filter(Boolean)
+    : [];
+  const hasSavedLocation = Boolean(
+    savedLocationParts.length > 0 ||
+      profile?.regionCode ||
+      profile?.cityMunicipalityCode ||
+      profile?.barangayCode,
+  );
+
+  useEffect(() => {
+    setProfile(doctor);
+  }, [doctor]);
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!user || !profile) return;
+
+    const form = new FormData(event.currentTarget);
+    const regionCode = String(form.get("regionCode") ?? "").trim();
+    const regionName = String(form.get("regionName") ?? "").trim();
+    const provinceCode = String(form.get("provinceCode") ?? "").trim();
+    const provinceName = String(form.get("provinceName") ?? "").trim();
+    const cityMunicipalityCode = String(
+      form.get("cityMunicipalityCode") ?? "",
+    ).trim();
+    const cityMunicipalityName = String(
+      form.get("cityMunicipalityName") ?? "",
+    ).trim();
+    const barangayCode = String(form.get("barangayCode") ?? "").trim();
+    const barangayName = String(form.get("barangayName") ?? "").trim();
+    const location = String(form.get("location") ?? "").trim();
+
+    setSaving(true);
+    setMessage("");
+
+    try {
+      const saved = await saveMyDoctorProfile(user, {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        suffix: suffixes.includes(profile.suffix as (typeof suffixes)[number])
+          ? profile.suffix
+          : "Other",
+        otherSuffix: suffixes.includes(profile.suffix as (typeof suffixes)[number])
+          ? undefined
+          : profile.suffix,
+        mobileNumber: profile.mobileNumber,
+        prcLicenseNumber: profile.prcLicenseNumber,
+        specializationCode: profile.specializationCode,
+        otherSpecialization:
+          profile.specializationCode === "OTHER"
+            ? profile.specializationName
+            : undefined,
+        clinicOrHospital: profile.clinicOrHospital,
+        location: location || cityMunicipalityName || profile.location,
+        regionCode,
+        regionName,
+        provinceCode: provinceCode || undefined,
+        provinceName: provinceName || undefined,
+        cityMunicipalityCode,
+        cityMunicipalityName,
+        barangayCode,
+        barangayName,
+        yearsOfExperience: profile.yearsOfExperience,
+        bio: profile.bio,
+        displayOnPublicWebsite: profile.displayOnPublicWebsite,
+        credentialReviewConsent: true,
+      });
+      setProfile(saved);
+      setMessage("Profile updated.");
+    } catch (error: unknown) {
+      setMessage(error instanceof Error ? error.message : "Unable to save profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!profile) return null;
+
+  return (
+    <div className="min-h-full bg-[#f7f2e8]">
+      <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+          Profile
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+          Your doctor information
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Update your public doctor details and clinic information. Email is read-only.
+        </p>
+      </section>
+
+      <main className="px-6 py-6 sm:px-8">
+        {message ? (
+          <div className="mb-4 rounded-xl border border-[#12324d]/10 bg-white px-4 py-3 text-sm text-primary">
+            {message}
+          </div>
+        ) : null}
+
+        <form className="grid gap-5 xl:grid-cols-2" onSubmit={handleSave}>
+          <ProfileCard title="Professional details">
+            <Field label="Professional email" value={profile.professionalEmail} disabled />
+            <TwoCols>
+              <Field label="First name" value={profile.firstName} onChange={(value) => setProfile({ ...profile, firstName: value })} />
+              <Field label="Last name" value={profile.lastName} onChange={(value) => setProfile({ ...profile, lastName: value })} />
+            </TwoCols>
+            <TwoCols>
+              <label className="grid gap-2 text-sm font-semibold text-primary">
+                Suffix
+                <select
+                  value={suffixes.includes(profile.suffix as (typeof suffixes)[number]) ? profile.suffix : "Other"}
+                  onChange={(event) => setProfile({ ...profile, suffix: event.target.value })}
+                  className="h-11 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm outline-none"
+                >
+                  {suffixes.map((suffix) => (
+                    <option key={suffix} value={suffix}>{suffix}</option>
+                  ))}
+                </select>
+              </label>
+              <Field label="Mobile number" value={profile.mobileNumber} onChange={(value) => setProfile({ ...profile, mobileNumber: value })} />
+            </TwoCols>
+            <TwoCols>
+              <Field label="PRC license number" value={profile.prcLicenseNumber} onChange={(value) => setProfile({ ...profile, prcLicenseNumber: value })} />
+              <Field label="Years of practice" type="number" value={String(profile.yearsOfExperience)} onChange={(value) => setProfile({ ...profile, yearsOfExperience: Number(value) })} />
+            </TwoCols>
+          </ProfileCard>
+
+          <ProfileCard title="Public profile">
+            <TwoCols>
+              <Field label="Specialization code" value={profile.specializationCode} onChange={(value) => setProfile({ ...profile, specializationCode: value })} />
+              <Field label="Specialization name" value={profile.specializationName} disabled />
+            </TwoCols>
+            <Field label="Clinic or hospital" value={profile.clinicOrHospital ?? ""} onChange={(value) => setProfile({ ...profile, clinicOrHospital: value })} />
+            <TextArea label="Bio" value={profile.bio} onChange={(value) => setProfile({ ...profile, bio: value })} />
+            <label className="flex items-center gap-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm font-semibold text-primary">
+              <input
+                type="checkbox"
+                checked={profile.displayOnPublicWebsite}
+                onChange={(event) => setProfile({ ...profile, displayOnPublicWebsite: event.target.checked })}
+              />
+              Show my profile on public doctor search
+            </label>
+          </ProfileCard>
+
+          <ProfileCard title="Location">
+            <p className="text-sm leading-6 text-muted-foreground">
+              Select your clinic location using the official Philippine PSGC address list.
+              NCR will automatically skip province selection.
+            </p>
+            {!hasSavedLocation ? (
+              <div className="rounded-xl border border-secondary/40 bg-secondary/10 px-4 py-3 text-sm leading-6 text-primary">
+                No saved clinic location found yet. Please choose your
+                Philippine clinic address, then save your profile.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm leading-6 text-primary">
+                Current saved clinic location:{" "}
+                <strong>
+                  {savedLocationParts.length > 0
+                    ? savedLocationParts.join(", ")
+                    : "Saved location codes detected"}
+                </strong>
+              </div>
+            )}
+            <PhAddressFields
+              defaultValue={{
+                regionCode: profile.regionCode,
+                provinceCode: profile.provinceCode,
+                cityMunicipalityCode: profile.cityMunicipalityCode,
+                barangayCode: profile.barangayCode,
+              }}
+            />
+          </ProfileCard>
+
+          <div className="xl:col-span-2">
+            <Button className="h-11 rounded-xl" disabled={saving} type="submit">
+              <Save className="size-4" />
+              {saving ? "Saving..." : "Save profile"}
+            </Button>
+          </div>
+        </form>
+      </main>
+    </div>
+  );
+}
+
+function ProfileCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5">
+      <h2 className="text-lg font-bold text-primary">{title}</h2>
+      <div className="mt-4 grid gap-4">{children}</div>
+    </section>
+  );
+}
+
+function TwoCols({ children }: { children: ReactNode }) {
+  return <div className="grid gap-4 sm:grid-cols-2">{children}</div>;
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange?: (value: string) => void;
+  type?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="grid gap-2 text-sm font-semibold text-primary">
+      {label}
+      <input
+        type={type}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange?.(event.target.value)}
+        className="h-11 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm outline-none disabled:bg-[#eee8dc] disabled:text-muted-foreground"
+      />
+    </label>
+  );
+}
+
+function TextArea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-2 text-sm font-semibold text-primary">
+      {label}
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={5}
+        className="min-h-32 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 py-3 text-sm outline-none"
+      />
+    </label>
+  );
+}

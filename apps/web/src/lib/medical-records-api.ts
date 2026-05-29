@@ -1,6 +1,7 @@
 import type { User } from "firebase/auth";
 
 import type { Appointment } from "./appointments-api";
+import type { HealthMonitoringSummary } from "./health-monitoring-api";
 
 export type PrescriptionItem = {
   medicine: string;
@@ -75,11 +76,13 @@ export type DoctorPatientDetail = {
   };
   appointments: Appointment[];
   records: MedicalRecord[];
+  monitoring?: HealthMonitoringSummary;
 };
 
 export type PatientRecordsView = {
   appointments: Appointment[];
   records: MedicalRecord[];
+  monitoring?: HealthMonitoringSummary;
 };
 
 export type UpsertMedicalRecordInput = {

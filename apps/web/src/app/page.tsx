@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   ChevronRight,
   FileText,
-  HeartPulse,
   Menu,
   Search,
   ShieldCheck,
@@ -25,10 +24,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/features/localization/language-selector";
 import { useLocale } from "@/features/localization/locale-provider";
-import { landingTranslations, type LandingCopy } from "@/features/localization/translations";
+import {
+  landingTranslations,
+  type LandingCopy,
+} from "@/features/localization/translations";
 
 const featuredDoctorPhoto =
   "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=960&q=80";
+const logoTextUrl =
+  "https://firebasestorage.googleapis.com/v0/b/miolms.firebasestorage.app/o/click-klinik%2Flogo-transparent_withtext.png?alt=media&token=dc17fecd-cec6-4573-8d85-0948f6d06da0";
+const footerLogoUrl =
+  "https://firebasestorage.googleapis.com/v0/b/miolms.firebasestorage.app/o/click-klinik%2Flogo-textline_transparent.png?alt=media&token=926c192d-e291-4d7d-ab56-a65a20756dfd";
 
 export default function Home() {
   const { locale } = useLocale();
@@ -39,37 +45,49 @@ export default function Home() {
     <main className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-8">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="Click Klinik home">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground sm:size-11">
-              <HeartPulse className="size-5 sm:size-6" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-base font-bold tracking-tight text-primary sm:text-xl">Click Klinik</span>
-              <span className="hidden truncate text-xs text-muted-foreground sm:block">{t.brandTagline}</span>
-            </span>
+          <Link
+            href="/"
+            className="flex items-center shrink-0"
+            aria-label="Click Klinik home"
+          >
+            <img
+              src={logoTextUrl}
+              alt="Click Klinik"
+              className="h-14 w-auto object-contain"
+            />
           </Link>
 
           <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground lg:flex">
             <Link href="/auth" className="transition-colors hover:text-primary">
               {t.nav.consult}
             </Link>
-            <Link href="#features" className="transition-colors hover:text-primary">
+            <Link
+              href="#features"
+              className="transition-colors hover:text-primary"
+            >
               {t.nav.portals}
             </Link>
-            <Link href="#professionals" className="transition-colors hover:text-primary">
+            <Link
+              href="#professionals"
+              className="transition-colors hover:text-primary"
+            >
               {t.nav.professionals}
             </Link>
-            <Link href="#safety" className="transition-colors hover:text-primary">
+            <Link
+              href="#safety"
+              className="transition-colors hover:text-primary"
+            >
               {t.nav.safety}
             </Link>
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
             <LanguageSelector />
-            <Button asChild className="hidden h-11 rounded-xl px-5 text-sm sm:inline-flex">
-              <Link href="/auth">
-                {t.nav.patientAuth}
-              </Link>
+            <Button
+              asChild
+              className="hidden h-11 rounded-xl px-5 text-sm sm:inline-flex"
+            >
+              <Link href="/auth">{t.nav.patientAuth}</Link>
             </Button>
             <button
               type="button"
@@ -78,23 +96,39 @@ export default function Home() {
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+              {mobileMenuOpen ? (
+                <X className="size-5" />
+              ) : (
+                <Menu className="size-5" />
+              )}
             </button>
           </div>
         </div>
         {mobileMenuOpen ? (
           <div className="border-t border-border/70 bg-background px-4 py-4 shadow-[0_18px_45px_-35px_rgba(8,43,69,0.85)] lg:hidden">
             <nav className="mx-auto grid max-w-md gap-2 text-sm font-semibold text-primary">
-              <MobileNavLink href="/auth" onClick={() => setMobileMenuOpen(false)}>
+              <MobileNavLink
+                href="/auth"
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 {t.nav.consult}
               </MobileNavLink>
-              <MobileNavLink href="#features" onClick={() => setMobileMenuOpen(false)}>
+              <MobileNavLink
+                href="#features"
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 {t.nav.portals}
               </MobileNavLink>
-              <MobileNavLink href="/professionals/apply" onClick={() => setMobileMenuOpen(false)}>
+              <MobileNavLink
+                href="/professionals/apply"
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 {t.nav.professionals}
               </MobileNavLink>
-              <MobileNavLink href="#safety" onClick={() => setMobileMenuOpen(false)}>
+              <MobileNavLink
+                href="#safety"
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 {t.nav.safety}
               </MobileNavLink>
               <Button asChild className="mt-2 h-11 rounded-xl">
@@ -123,7 +157,11 @@ export default function Home() {
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Button asChild size="lg" className="h-13 rounded-xl px-7 text-base">
+              <Button
+                asChild
+                size="lg"
+                className="h-13 rounded-xl px-7 text-base"
+              >
                 <Link href="/auth">
                   {t.hero.book}
                   <ArrowRight className="size-4" />
@@ -200,9 +238,16 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-border bg-card">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 px-5 py-7 text-sm text-muted-foreground sm:flex-row lg:px-8">
-          <p>{t.footer.label}</p>
-          <p>{t.footer.emergency}</p>
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center lg:px-8">
+          <div>
+            <img
+              src={footerLogoUrl}
+              alt="Click Klinik"
+              className="h-25 w-auto object-contain"
+            />
+            <p className="mt-2">{t.footer.label}</p>
+          </div>
+          <p className="max-w-md sm:text-right">{t.footer.emergency}</p>
         </div>
       </footer>
     </main>
@@ -227,7 +272,9 @@ function CareJourney({ copy }: { copy: LandingCopy }) {
             <p className="text-xs font-bold tracking-[0.18em] text-accent uppercase">
               {copy.family.eyebrow}
             </p>
-            <p className="mt-3 text-lg leading-7 font-medium">{copy.family.title}</p>
+            <p className="mt-3 text-lg leading-7 font-medium">
+              {copy.family.title}
+            </p>
           </div>
         </div>
 
@@ -246,7 +293,9 @@ function CareJourney({ copy }: { copy: LandingCopy }) {
                 </span>
                 <div>
                   <h3 className="text-lg font-bold">{step.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.copy}</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {step.copy}
+                  </p>
                 </div>
                 <span className="hidden rounded-full bg-secondary/45 px-3 py-2 text-xs font-semibold text-primary sm:block">
                   {copy.process.tags[index]}
@@ -297,7 +346,10 @@ function FeaturedDoctors({ copy }: { copy: LandingCopy }) {
               <div className="mt-9 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-primary-foreground/15 py-5">
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} className="size-5 fill-secondary text-secondary" />
+                    <Star
+                      key={star}
+                      className="size-5 fill-secondary text-secondary"
+                    />
                   ))}
                 </div>
                 <p className="text-xl font-bold">5.0</p>
@@ -310,12 +362,18 @@ function FeaturedDoctors({ copy }: { copy: LandingCopy }) {
             <div className="mt-8 grid gap-6 sm:grid-cols-[1fr_auto] sm:items-end">
               <div>
                 <p className="text-2xl font-bold">{doctor.name}</p>
-                <p className="mt-1 text-sm text-primary-foreground/65">{doctor.role}</p>
+                <p className="mt-1 text-sm text-primary-foreground/65">
+                  {doctor.role}
+                </p>
                 <div className="mt-5 flex items-center gap-3 text-sm">
                   <CalendarDays className="size-4 text-secondary" />
                   <div>
-                    <p className="text-primary-foreground/55">{copy.featuredDoctors.available}</p>
-                    <p className="font-semibold text-secondary">{doctor.nextSlot}</p>
+                    <p className="text-primary-foreground/55">
+                      {copy.featuredDoctors.available}
+                    </p>
+                    <p className="font-semibold text-secondary">
+                      {doctor.nextSlot}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -338,7 +396,10 @@ function FeaturedDoctors({ copy }: { copy: LandingCopy }) {
 
 function ConsultationHandoff({ copy }: { copy: LandingCopy }) {
   return (
-    <section id="doctor-portal" className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
+    <section
+      id="doctor-portal"
+      className="mx-auto max-w-7xl px-5 py-16 lg:px-8"
+    >
       <div className="mb-8 max-w-2xl">
         <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">
           {copy.handoff.eyebrow}
@@ -390,7 +451,10 @@ function ConsultationHandoff({ copy }: { copy: LandingCopy }) {
 
 function ProfessionalCallout({ copy }: { copy: LandingCopy }) {
   return (
-    <section id="professionals" className="mx-auto max-w-7xl px-5 pb-16 lg:px-8">
+    <section
+      id="professionals"
+      className="mx-auto max-w-7xl px-5 pb-16 lg:px-8"
+    >
       <div className="relative overflow-hidden rounded-[2rem] border border-primary/12 bg-[#f5efe1]">
         <div className="absolute -top-24 -right-20 size-72 rounded-full bg-secondary/35" />
         <div className="relative grid gap-8 p-7 sm:p-10 lg:grid-cols-[0.93fr_1.07fr] lg:items-center">
@@ -416,11 +480,16 @@ function ProfessionalCallout({ copy }: { copy: LandingCopy }) {
           <div className="rounded-[1.5rem] border border-primary/10 bg-card p-5 sm:p-7">
             <div className="space-y-4">
               {copy.professionals.steps.map((step, index) => (
-                <div key={step} className="flex items-center gap-4 rounded-2xl bg-background px-4 py-4">
+                <div
+                  key={step}
+                  className="flex items-center gap-4 rounded-2xl bg-background px-4 py-4"
+                >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
                     {index + 1}
                   </span>
-                  <p className="text-sm font-semibold text-foreground">{step}</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {step}
+                  </p>
                 </div>
               ))}
             </div>
@@ -452,13 +521,18 @@ function BookingPreview({ copy }: { copy: LandingCopy }) {
   ];
 
   return (
-    <div id="find-doctor" className="landing-rise-late rounded-[2rem] border border-border bg-card p-4 shadow-[0_24px_65px_-32px_rgba(8,43,69,0.3)] sm:p-6">
+    <div
+      id="find-doctor"
+      className="landing-rise-late rounded-[2rem] border border-border bg-card p-4 shadow-[0_24px_65px_-32px_rgba(8,43,69,0.3)] sm:p-6"
+    >
       <div className="flex items-center justify-between border-b border-border pb-5">
         <div>
           <p className="text-xs font-semibold tracking-[0.14em] text-primary uppercase">
             {copy.bookingPreview.label}
           </p>
-          <h2 className="mt-1 text-xl font-bold">{copy.bookingPreview.title}</h2>
+          <h2 className="mt-1 text-xl font-bold">
+            {copy.bookingPreview.title}
+          </h2>
         </div>
         <span className="rounded-full bg-[#e6f7ee] px-3 py-1.5 text-xs font-semibold text-[#12734b]">
           {copy.bookingPreview.availableNow}
@@ -471,9 +545,15 @@ function BookingPreview({ copy }: { copy: LandingCopy }) {
       </div>
 
       <div className="mt-5 flex gap-2 overflow-hidden text-xs font-semibold">
-        <span className="rounded-full bg-primary px-3 py-2 text-primary-foreground">{copy.bookingPreview.specialties[0]}</span>
-        <span className="rounded-full bg-muted px-3 py-2 text-muted-foreground">{copy.bookingPreview.specialties[1]}</span>
-        <span className="rounded-full bg-muted px-3 py-2 text-muted-foreground">{copy.bookingPreview.specialties[2]}</span>
+        <span className="rounded-full bg-primary px-3 py-2 text-primary-foreground">
+          {copy.bookingPreview.specialties[0]}
+        </span>
+        <span className="rounded-full bg-muted px-3 py-2 text-muted-foreground">
+          {copy.bookingPreview.specialties[1]}
+        </span>
+        <span className="rounded-full bg-muted px-3 py-2 text-muted-foreground">
+          {copy.bookingPreview.specialties[2]}
+        </span>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -508,8 +588,14 @@ function BookingPreview({ copy }: { copy: LandingCopy }) {
           </span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-          <AppointmentDetail icon={<CalendarDays />} value={copy.appointment.scheduleValue} />
-          <AppointmentDetail icon={<Video />} value={copy.appointment.whereValue} />
+          <AppointmentDetail
+            icon={<CalendarDays />}
+            value={copy.appointment.scheduleValue}
+          />
+          <AppointmentDetail
+            icon={<Video />}
+            value={copy.appointment.whereValue}
+          />
         </div>
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -519,17 +605,25 @@ function BookingPreview({ copy }: { copy: LandingCopy }) {
             <ArrowRight className="size-4" />
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-11 rounded-xl bg-background">
-          <Link href="/professionals/apply">
-            Doctor application
-          </Link>
+        <Button
+          asChild
+          variant="outline"
+          className="h-11 rounded-xl bg-background"
+        >
+          <Link href="/professionals/apply">Doctor application</Link>
         </Button>
       </div>
     </div>
   );
 }
 
-function AppointmentDetail({ icon, value }: { icon: ReactNode; value: string }) {
+function AppointmentDetail({
+  icon,
+  value,
+}: {
+  icon: ReactNode;
+  value: string;
+}) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-primary-foreground/10 px-3 py-3">
       <span className="text-secondary [&_svg]:size-4">{icon}</span>
@@ -565,7 +659,9 @@ function HeroMetric({ icon, title }: { icon: ReactNode; title: string }) {
       <span className="mx-auto mb-2 flex size-9 items-center justify-center rounded-xl bg-primary/8 text-primary [&_svg]:size-4">
         {icon}
       </span>
-      <p className="text-xs leading-5 font-medium text-muted-foreground">{title}</p>
+      <p className="text-xs leading-5 font-medium text-muted-foreground">
+        {title}
+      </p>
     </div>
   );
 }
@@ -587,7 +683,9 @@ function HandoffSide({
     <div className={`p-7 sm:p-9 ${doctor ? "bg-primary/[0.025]" : ""}`}>
       <div className="flex items-start justify-between gap-5">
         <div>
-          <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">{eyebrow}</p>
+          <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">
+            {eyebrow}
+          </p>
           <h3 className="mt-3 text-2xl font-bold tracking-tight">{title}</h3>
         </div>
         <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary [&_svg]:size-6">

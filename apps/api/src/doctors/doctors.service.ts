@@ -12,6 +12,7 @@ import { Patient } from '../patients/schemas/patient.schema';
 import { CreateDoctorApplicationDto } from './dto/create-doctor-application.dto';
 import { DoctorRecommendationDto } from './dto/doctor-recommendation.dto';
 import { ReviewDoctorApplicationDto } from './dto/review-doctor-application.dto';
+import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
 import { Doctor } from './schemas/doctor.schema';
 import { SPECIALIZATIONS } from './specializations';
 
@@ -61,6 +62,67 @@ export class DoctorsService {
     }
 
     return application;
+  }
+
+  async updateMyProfile(
+    user: DecodedIdToken,
+    dto: UpdateDoctorProfileDto,
+  ): Promise<Doctor> {
+    const application = await this.getMyApplication(user);
+    const suffix =
+      dto.suffix === 'Other' ? dto.otherSuffix?.trim() : dto.suffix;
+    const specializationName =
+      dto.specializationCode === 'OTHER'
+        ? dto.otherSpecialization?.trim()
+        : SPECIALIZATIONS[dto.specializationCode];
+
+    if (!suffix) {
+      throw new BadRequestException('Select or enter a professional suffix.');
+    }
+
+    if (!specializationName) {
+      throw new BadRequestException('Select or enter a specialization.');
+    }
+
+    const mobileNumber = normalizePhilippineMobileNumber(dto.mobileNumber);
+    await this.assertMobileNumberAvailable(user.uid, mobileNumber);
+
+    const updated = await this.doctorModel
+      .findByIdAndUpdate(
+        getDocumentId(application),
+        {
+          $set: {
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            suffix,
+            mobileNumber,
+            prcLicenseNumber: dto.prcLicenseNumber.trim(),
+            specializationCode: dto.specializationCode,
+            specializationName,
+            clinicOrHospital: dto.clinicOrHospital?.trim(),
+            location: dto.location?.trim() ?? dto.cityMunicipalityName.trim(),
+            regionCode: dto.regionCode.trim(),
+            regionName: dto.regionName.trim(),
+            provinceCode: dto.provinceCode?.trim(),
+            provinceName: dto.provinceName?.trim(),
+            cityMunicipalityCode: dto.cityMunicipalityCode.trim(),
+            cityMunicipalityName: dto.cityMunicipalityName.trim(),
+            barangayCode: dto.barangayCode.trim(),
+            barangayName: dto.barangayName.trim(),
+            yearsOfExperience: dto.yearsOfExperience,
+            bio: dto.bio.trim(),
+            displayOnPublicWebsite: dto.displayOnPublicWebsite,
+          },
+        },
+        { new: true, runValidators: true },
+      )
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException('Doctor profile not found.');
+    }
+
+    return updated;
   }
 
   async submitApplication(
@@ -716,4 +778,17 @@ function getAccountEmail(user: DecodedIdToken): string {
   }
 
   return email;
+}
+
+function getDocumentId(document: unknown): string {
+  if (
+    typeof document === 'object' &&
+    document !== null &&
+    '_id' in document &&
+    document._id
+  ) {
+    return String(document._id);
+  }
+
+  throw new NotFoundException('Document id is missing.');
 }

@@ -8,6 +8,7 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
 import { HydratedDocument, Model } from 'mongoose';
 import { Appointment } from '../appointments/schemas/appointment.schema';
 import { Doctor } from '../doctors/schemas/doctor.schema';
+import { HealthMonitoringLog } from '../health-monitoring/schemas/health-monitoring-log.schema';
 import { Patient } from '../patients/schemas/patient.schema';
 import { UpsertMedicalCertificateDto } from './dto/upsert-medical-certificate.dto';
 import { UpsertMedicalRecordDto } from './dto/upsert-medical-record.dto';
@@ -49,6 +50,14 @@ type DoctorPatientDetail = {
       canViewPrivateNote: boolean;
     }
   >;
+  monitoring: {
+    latestLog?: HealthMonitoringLog;
+    logs: HealthMonitoringLog[];
+    summary: string;
+    trend: string;
+    flags: string[];
+    disclaimer: string;
+  };
 };
 
 type PatientRecordsView = {
@@ -59,6 +68,14 @@ type PatientRecordsView = {
       canViewPrivateNote: false;
     }
   >;
+  monitoring: {
+    latestLog?: HealthMonitoringLog;
+    logs: HealthMonitoringLog[];
+    summary: string;
+    trend: string;
+    flags: string[];
+    disclaimer: string;
+  };
 };
 
 @Injectable()
@@ -72,6 +89,8 @@ export class MedicalRecordsService {
     private readonly appointmentModel: Model<Appointment>,
     @InjectModel(Patient.name) private readonly patientModel: Model<Patient>,
     @InjectModel(Doctor.name) private readonly doctorModel: Model<Doctor>,
+    @InjectModel(HealthMonitoringLog.name)
+    private readonly monitoringModel: Model<HealthMonitoringLog>,
   ) {}
 
   async listDoctorPatients(user: DecodedIdToken): Promise<DoctorPatientListItem[]> {
@@ -158,6 +177,7 @@ export class MedicalRecordsService {
       .sort({ createdAt: -1 })
       .lean()
       .exec();
+    const monitoringLogs = await this.getMonitoringLogs(patientId);
 
     return {
       patient: {
@@ -183,6 +203,7 @@ export class MedicalRecordsService {
             : undefined,
         canViewPrivateNote: record.doctorApplicationId === doctorApplicationId,
       })),
+      monitoring: buildMonitoringSummary(monitoringLogs),
     };
   }
 
@@ -371,6 +392,7 @@ export class MedicalRecordsService {
       .sort({ issuedAt: -1, createdAt: -1 })
       .lean()
       .exec();
+    const monitoringLogs = await this.getMonitoringLogs(patientId);
     const certificatesByAppointmentId = new Map(
       certificates.map((certificate) => [
         certificate.appointmentId,
@@ -432,7 +454,17 @@ export class MedicalRecordsService {
         privateNote: undefined,
         canViewPrivateNote: false,
       })),
+      monitoring: buildMonitoringSummary(monitoringLogs),
     };
+  }
+
+  private async getMonitoringLogs(patientId: string): Promise<HealthMonitoringLog[]> {
+    return this.monitoringModel
+      .find({ patientId })
+      .sort({ loggedAt: -1 })
+      .limit(20)
+      .lean()
+      .exec();
   }
 
   private async getApprovedDoctor(
@@ -602,4 +634,37 @@ function mergeRecordCertificate(
       issuedAt: certificate.issuedAt,
     },
   } as MedicalRecord & { _id?: unknown; __v?: number };
+}
+
+function buildMonitoringSummary(logs: HealthMonitoringLog[]): {
+  latestLog?: HealthMonitoringLog;
+  logs: HealthMonitoringLog[];
+  summary: string;
+  trend: string;
+  flags: string[];
+  disclaimer: string;
+} {
+  const latestLog = logs[0];
+  const disclaimer =
+    latestLog?.disclaimer ??
+    'Guidance only. This monitoring summary does not replace professional medical advice or emergency care.';
+
+  if (!latestLog) {
+    return {
+      logs,
+      summary: 'No home monitoring logs have been submitted yet.',
+      trend: 'first_log',
+      flags: [],
+      disclaimer,
+    };
+  }
+
+  return {
+    latestLog,
+    logs,
+    summary: latestLog.analysisSummary,
+    trend: latestLog.trend,
+    flags: latestLog.flags,
+    disclaimer,
+  };
 }

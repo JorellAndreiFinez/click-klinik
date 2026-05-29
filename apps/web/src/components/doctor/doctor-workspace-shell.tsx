@@ -7,16 +7,17 @@ import {
   BookOpenText,
   CalendarDays,
   CalendarRange,
+  ChevronsLeft,
+  ChevronsRight,
   ClipboardPenLine,
-  HeartPulse,
   LayoutDashboard,
   LogOut,
   MonitorSmartphone,
-  ShieldCheck,
   Stethoscope,
+  UserRound,
 } from "lucide-react";
+import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
@@ -58,10 +59,19 @@ const workspaceLinks: WorkspaceLink[] = [
     label: "Session",
     icon: <MonitorSmartphone className="size-4" />,
   },
+  {
+    href: "/doctor/profile",
+    label: "Profile",
+    icon: <UserRound className="size-4" />,
+  },
 ] as const;
+
+const logoTextUrl =
+  "https://firebasestorage.googleapis.com/v0/b/miolms.firebasestorage.app/o/click-klinik%2Flogo-with_bg.jpg?alt=media&token=1be21a6e-cba7-4cb1-a4b9-da1df3617fe7";
 
 export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
   const { configured, doctor, loading, message, signOutDoctor } =
     useDoctorWorkspace();
 
@@ -87,35 +97,44 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <main className="min-h-screen bg-[#f7f2e8]">
-      <div className="grid min-h-screen lg:grid-cols-[220px_1fr]">
-        <aside className="border-r border-[#12324d]/12 bg-[#0a2e49] px-4 py-4 text-primary-foreground lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start">
-          <div className="flex items-center gap-3 border-b border-primary-foreground/14 pb-4">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-primary">
-              <HeartPulse className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-[0.08em]">
-                Click Klinik
-              </p>
-              <p className="text-xs text-primary-foreground/60">Doctor care</p>
-            </div>
+      <div
+        className={cn(
+          "grid min-h-screen",
+          collapsed
+            ? "grid-cols-[82px_minmax(0,1fr)]"
+            : "grid-cols-[196px_minmax(0,1fr)]",
+        )}
+      >
+        <aside className="sticky top-0 flex h-screen flex-col self-start overflow-hidden border-r border-white/10 bg-[#07304a] px-3.5 py-4 text-primary-foreground shadow-[18px_0_60px_-48px_rgba(8,43,69,0.9)]">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_50%_0%,rgba(255,217,46,0.16),transparent_62%)]" />
+          <div className="relative">
+            <Link href="/doctor/dashboard" className="block w-fit">
+              <img
+                src={logoTextUrl}
+                alt="Click Klinik"
+                className={cn(
+                  "h-14 w-auto rounded-2xl object-contain",
+                  collapsed && "h-12 w-12 object-cover",
+                )}
+              />
+            </Link>
           </div>
 
-          <div className="mt-4 rounded-xl border border-primary-foreground/14 px-3 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{displayName}</p>
-                <p className="mt-1 truncate text-xs text-primary-foreground/62">
-                  {doctor.specializationName}
-                </p>
-              </div>
-              <Badge className="shrink-0 rounded-full border border-primary-foreground/14 bg-primary-foreground/[0.06] px-2 text-[10px] text-secondary shadow-none">
-                <ShieldCheck className="size-3" />
-              </Badge>
-            </div>
+          <div
+            className={cn(
+              "relative mt-5 rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-3",
+              collapsed && "hidden",
+            )}
+          >
+            <p className="truncate text-xs font-semibold text-primary-foreground/80">
+              Doctor account
+            </p>
+            <p className="mt-1 truncate text-sm font-bold text-primary-foreground">
+              {displayName}
+            </p>
           </div>
 
-          <nav className="mt-5 grid gap-2">
+          <nav className="relative mt-6 grid gap-2">
             {workspaceLinks.map((link) => {
               const active =
                 pathname === link.href ||
@@ -129,36 +148,45 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "flex h-12 items-center gap-3 rounded-xl border px-3 text-sm font-semibold transition-colors",
+                    "group flex h-11 w-full items-center gap-2.5 rounded-2xl px-3 text-sm font-semibold transition-all",
+                    collapsed && "justify-center px-0",
                     active
-                      ? "border-secondary bg-secondary text-secondary-foreground"
-                      : "border-primary-foreground/12 bg-primary-foreground/[0.03] text-primary-foreground/75 hover:bg-primary-foreground/[0.08] hover:text-primary-foreground",
+                      ? "bg-secondary text-secondary-foreground shadow-[0_18px_34px_-24px_rgba(255,217,46,0.9)]"
+                      : "text-primary-foreground/70 hover:bg-white/[0.08] hover:text-primary-foreground",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex size-8 items-center justify-center rounded-lg",
+                      "flex size-8 shrink-0 items-center justify-center rounded-xl transition-colors",
                       active
                         ? "bg-secondary-foreground/10"
-                        : "bg-primary-foreground/[0.08] text-secondary",
+                        : "bg-white/[0.04] text-secondary/80 group-hover:bg-white/[0.08]",
                     )}
                   >
                     {link.icon}
                   </span>
-                  {link.label}
+                  <span className={cn(collapsed && "hidden")}>{link.label}</span>
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-auto pt-4">
+          <div className="relative mt-auto pt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setCollapsed((current) => !current)}
+              className="mb-2 h-10 w-full rounded-2xl text-primary-foreground/70 hover:bg-white/[0.08] hover:text-primary-foreground"
+            >
+              {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
+              <span className={cn(collapsed && "hidden")}>Collapse</span>
+            </Button>
             <Button
               variant="outline"
               onClick={() => void signOutDoctor()}
-              className="h-11 w-full rounded-xl border-primary-foreground/16 bg-primary-foreground/[0.05] text-primary-foreground hover:bg-primary-foreground/[0.1] hover:text-primary-foreground"
+              className="h-11 w-full rounded-2xl border-white/12 bg-white/[0.05] text-primary-foreground hover:bg-white/[0.1] hover:text-primary-foreground"
             >
               <LogOut className="size-4" />
-              Log out
+              <span className={cn(collapsed && "hidden")}>Log out</span>
             </Button>
           </div>
         </aside>

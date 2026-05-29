@@ -741,7 +741,7 @@ function downloadMedicalCertificatePdf(
       <head>
         <title>Click Klinik Medical Certificate</title>
         <style>
-          @page { size: A4; margin: 22mm 20mm; }
+          @page { size: A4; margin: 10mm; }
           body {
             color: #082b45;
             font-family: Georgia, "Times New Roman", serif;
@@ -749,9 +749,10 @@ function downloadMedicalCertificatePdf(
             background: #ffffff;
           }
           .paper {
-            min-height: 250mm;
+            box-sizing: border-box;
+            min-height: 277mm;
+            padding: 18mm 18mm 16mm;
             position: relative;
-            padding: 0;
           }
           .watermark {
             color: rgba(8, 43, 69, 0.045);
@@ -772,7 +773,7 @@ function downloadMedicalCertificatePdf(
             border-bottom: 1.5px solid #082b45;
             display: flex;
             gap: 14px;
-            padding-bottom: 18px;
+            padding-bottom: 20px;
           }
           .logo {
             align-items: center;
@@ -792,7 +793,7 @@ function downloadMedicalCertificatePdf(
             font-size: 24px;
             font-weight: 800;
             letter-spacing: 2.4px;
-            margin-top: 36px;
+            margin-top: 34px;
             text-align: center;
             text-transform: uppercase;
           }
@@ -806,14 +807,15 @@ function downloadMedicalCertificatePdf(
           }
           .grid {
             display: grid;
-            gap: 12px;
+            gap: 14px;
             grid-template-columns: 1fr 1fr;
-            margin-top: 30px;
+            margin-top: 34px;
           }
           .box {
             border: 1px solid #d8d0c2;
             border-radius: 4px;
-            padding: 13px 14px;
+            min-height: 45px;
+            padding: 14px 16px;
           }
           .label {
             color: #49657a;
@@ -828,9 +830,9 @@ function downloadMedicalCertificatePdf(
             border-radius: 4px;
             font-size: 16px;
             line-height: 1.95;
-            margin-top: 30px;
-            min-height: 250px;
-            padding: 28px 30px;
+            margin-top: 34px;
+            min-height: 220px;
+            padding: 30px 32px;
             text-align: justify;
           }
           .remarks {
@@ -839,12 +841,12 @@ function downloadMedicalCertificatePdf(
             border-radius: 4px;
             font-size: 13px;
             line-height: 1.6;
-            margin-top: 18px;
-            padding: 14px;
+            margin-top: 22px;
+            padding: 14px 16px;
           }
           .signature {
             margin-left: auto;
-            margin-top: 68px;
+            margin-top: 58px;
             text-align: center;
             width: 280px;
           }
@@ -877,11 +879,16 @@ function downloadMedicalCertificatePdf(
             border-top: 1px solid #d8d0c2;
             bottom: 0;
             color: #49657a;
-            font-size: 11px;
+            font-size: 10px;
+            left: 18mm;
             line-height: 1.5;
             padding-top: 12px;
             position: absolute;
-            width: 100%;
+            right: 18mm;
+          }
+          .footer-text {
+            max-width: 100%;
+            overflow-wrap: anywhere;
           }
         </style>
       </head>
@@ -938,9 +945,11 @@ function downloadMedicalCertificatePdf(
             </section>
           </div>
           <footer>
-            Verification ID: ${escapeHtml(record._id)} / Appointment: ${escapeHtml(
-              record.appointmentId,
-            )}. This certificate is based on the telehealth consultation record and should be verified in Click Klinik.
+            <div class="footer-text">
+              Verification ID: ${escapeHtml(record._id)} / Appointment: ${escapeHtml(
+                record.appointmentId,
+              )}. This certificate is based on the telehealth consultation record and should be verified in Click Klinik.
+            </div>
           </footer>
         </div>
         <script>

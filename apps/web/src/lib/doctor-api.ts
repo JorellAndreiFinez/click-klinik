@@ -57,6 +57,16 @@ export async function getMyApprovedDoctorAccess(
   return doctorRequest<DoctorApplication>(user, "/doctors/me/access");
 }
 
+export async function saveMyDoctorProfile(
+  user: User,
+  application: DoctorApplicationInput,
+): Promise<DoctorApplication> {
+  return doctorRequest<DoctorApplication>(user, "/doctors/me", {
+    method: "PATCH",
+    body: JSON.stringify(application),
+  });
+}
+
 export async function checkDoctorSignupEligibility(user: User): Promise<void> {
   await doctorRequest<{ available: true }>(user, "/doctors/signup-eligibility", {
     method: "POST",

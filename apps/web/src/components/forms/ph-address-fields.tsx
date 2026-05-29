@@ -14,19 +14,39 @@ import {
 
 type PhAddressFieldsProps = {
   prefix?: string;
+  defaultValue?: {
+    regionCode?: string;
+    provinceCode?: string;
+    cityMunicipalityCode?: string;
+    barangayCode?: string;
+  };
 };
 
-export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
+export function PhAddressFields({ prefix = "", defaultValue }: PhAddressFieldsProps) {
   const [regions, setRegions] = useState<PsgcItem[]>([]);
   const [provinces, setProvinces] = useState<PsgcItem[]>([]);
   const [citiesMunicipalities, setCitiesMunicipalities] = useState<PsgcItem[]>([]);
   const [barangays, setBarangays] = useState<PsgcItem[]>([]);
 
-  const [regionCode, setRegionCode] = useState("");
-  const [provinceCode, setProvinceCode] = useState("");
-  const [cityMunicipalityCode, setCityMunicipalityCode] = useState("");
-  const [barangayCode, setBarangayCode] = useState("");
+  const [regionCode, setRegionCode] = useState(defaultValue?.regionCode ?? "");
+  const [provinceCode, setProvinceCode] = useState(defaultValue?.provinceCode ?? "");
+  const [cityMunicipalityCode, setCityMunicipalityCode] = useState(
+    defaultValue?.cityMunicipalityCode ?? "",
+  );
+  const [barangayCode, setBarangayCode] = useState(defaultValue?.barangayCode ?? "");
   const [loadingError, setLoadingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRegionCode(defaultValue?.regionCode ?? "");
+    setProvinceCode(defaultValue?.provinceCode ?? "");
+    setCityMunicipalityCode(defaultValue?.cityMunicipalityCode ?? "");
+    setBarangayCode(defaultValue?.barangayCode ?? "");
+  }, [
+    defaultValue?.barangayCode,
+    defaultValue?.cityMunicipalityCode,
+    defaultValue?.provinceCode,
+    defaultValue?.regionCode,
+  ]);
 
   const regionName = useMemo(
     () => regions.find((item) => item.code === regionCode)?.name ?? "",
@@ -53,6 +73,7 @@ export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
       .then((nextRegions) => {
         if (active) {
           setRegions(nextRegions);
+          setRegionCode((current) => current || defaultValue?.regionCode || "");
         }
       })
       .catch(() => {
@@ -64,7 +85,7 @@ export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [defaultValue?.regionCode]);
 
   useEffect(() => {
     if (!regionCode) {
@@ -73,7 +94,14 @@ export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
 
     if (isNcrRegion(regionCode)) {
       void getRegionCitiesMunicipalities(regionCode)
-        .then((items) => setCitiesMunicipalities(items))
+        .then((items) => {
+          setProvinces([]);
+          setProvinceCode("");
+          setCitiesMunicipalities(items);
+          setCityMunicipalityCode(
+            (current) => current || defaultValue?.cityMunicipalityCode || "",
+          );
+        })
         .catch(() =>
           setLoadingError("Unable to load NCR cities and municipalities."),
         );
@@ -84,9 +112,10 @@ export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
       .then((items) => {
         setProvinces(items);
         setCitiesMunicipalities([]);
+        setProvinceCode((current) => current || defaultValue?.provinceCode || "");
       })
       .catch(() => setLoadingError("Unable to load provinces for this region."));
-  }, [regionCode]);
+  }, [defaultValue?.cityMunicipalityCode, defaultValue?.provinceCode, regionCode]);
 
   useEffect(() => {
     if (!provinceCode || isNcrRegion(regionCode)) {
@@ -94,11 +123,16 @@ export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
     }
 
     void getProvinceCitiesMunicipalities(provinceCode)
-      .then((items) => setCitiesMunicipalities(items))
+      .then((items) => {
+        setCitiesMunicipalities(items);
+        setCityMunicipalityCode(
+          (current) => current || defaultValue?.cityMunicipalityCode || "",
+        );
+      })
       .catch(() =>
         setLoadingError("Unable to load cities and municipalities for this province."),
       );
-  }, [provinceCode, regionCode]);
+  }, [defaultValue?.cityMunicipalityCode, provinceCode, regionCode]);
 
   useEffect(() => {
     if (!cityMunicipalityCode) {
@@ -106,9 +140,12 @@ export function PhAddressFields({ prefix = "" }: PhAddressFieldsProps) {
     }
 
     void getBarangays(cityMunicipalityCode)
-      .then((items) => setBarangays(items))
+      .then((items) => {
+        setBarangays(items);
+        setBarangayCode((current) => current || defaultValue?.barangayCode || "");
+      })
       .catch(() => setLoadingError("Unable to load barangays for this area."));
-  }, [cityMunicipalityCode]);
+  }, [cityMunicipalityCode, defaultValue?.barangayCode]);
 
   const fieldName = (name: string) => `${prefix}${name}`;
 
