@@ -14,6 +14,7 @@ import { Patient } from '../patients/schemas/patient.schema';
 import { ScheduleSlot } from '../schedules/schemas/schedule.schema';
 import { Doctor } from '../doctors/schemas/doctor.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { RateDoctorDto } from './dto/rate-doctor.dto';
 import { RequestRefundDto } from './dto/request-refund.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import {
@@ -29,6 +30,18 @@ import { Payout } from './schemas/payout.schema';
 
 const PLATFORM_COMMISSION_RATE = 0.15;
 const PAY_NOW_PAYMENT_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+type DoctorPayoutSummary = {
+  totals: {
+    grossAmountPhp: number;
+    platformCommissionPhp: number;
+    doctorPayoutPhp: number;
+    availablePayoutPhp: number;
+    pendingPayoutPhp: number;
+    refundedPhp: number;
+  };
+  payouts: Payout[];
+};
 
 @Injectable()
 export class AppointmentsService {
@@ -391,6 +404,60 @@ export class AppointmentsService {
     return this.syncPendingPaymentStatuses(appointments);
   }
 
+  async listDoctorPayouts(user: DecodedIdToken): Promise<DoctorPayoutSummary> {
+    const doctor = await this.getApprovedDoctor(user);
+    const doctorApplicationId = String(doctor._id);
+
+    const appointments = await this.appointmentModel
+      .find({ doctorApplicationId })
+      .sort({ scheduledStartAt: 1 })
+      .exec();
+
+    await this.syncPendingPaymentStatuses(appointments);
+
+    const payouts = await this.payoutModel
+      .find({ doctorApplicationId })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const totals = payouts.reduce(
+      (summary, payout) => {
+        if (payout.status === 'cancelled') {
+          return summary;
+        }
+
+        if (payout.status === 'refunded' || payout.status === 'refund_requested') {
+          summary.refundedPhp += payout.grossAmountPhp;
+          return summary;
+        }
+
+        summary.grossAmountPhp += payout.grossAmountPhp;
+        summary.platformCommissionPhp += payout.platformCommissionPhp;
+        summary.doctorPayoutPhp += payout.doctorPayoutPhp;
+
+        if (payout.status === 'available' || payout.status === 'paid_out') {
+          summary.availablePayoutPhp += payout.doctorPayoutPhp;
+        }
+
+        if (payout.status === 'pending_payment') {
+          summary.pendingPayoutPhp += payout.doctorPayoutPhp;
+        }
+
+        return summary;
+      },
+      {
+        availablePayoutPhp: 0,
+        doctorPayoutPhp: 0,
+        grossAmountPhp: 0,
+        pendingPayoutPhp: 0,
+        platformCommissionPhp: 0,
+        refundedPhp: 0,
+      },
+    );
+
+    return { payouts, totals };
+  }
+
   async updateStatus(
     user: DecodedIdToken,
     id: string,
@@ -433,6 +500,55 @@ export class AppointmentsService {
         {
           $set: {
             status: nextStatus,
+            ...(nextStatus === 'completed'
+              ? {
+                  patientHasRatedDoctor: appointment.patientHasRatedDoctor ?? false,
+                }
+              : {}),
+          },
+        },
+        { new: true },
+      )
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException('Consultation not found.');
+    }
+
+    return updated;
+  }
+
+  async rateDoctor(
+    user: DecodedIdToken,
+    id: string,
+    dto: RateDoctorDto,
+  ): Promise<Appointment> {
+    const appointment = await this.getAccessibleAppointment(user, id);
+    const isPatient = await this.isPatientOwner(user, appointment.patientId);
+
+    if (!isPatient) {
+      throw new ForbiddenException('Only the patient can rate this doctor.');
+    }
+
+    if (appointment.status !== 'completed') {
+      throw new BadRequestException(
+        'You can rate the doctor after the consultation is completed.',
+      );
+    }
+
+    if (appointment.patientHasRatedDoctor) {
+      throw new BadRequestException('This consultation has already been rated.');
+    }
+
+    const updated = await this.appointmentModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            patientHasRatedDoctor: true,
+            doctorRatingStars: dto.stars,
+            doctorRatingComment: dto.comment?.trim(),
+            doctorRatedAt: new Date(),
           },
         },
         { new: true },

@@ -32,6 +32,7 @@ const sessionChecklist = [
 export default function DoctorSessionPage() {
   const { user } = useDoctorWorkspace();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,7 +41,14 @@ export default function DoctorSessionPage() {
     }
 
     void getMyDoctorAppointments(user)
-      .then((result) => setAppointments(result))
+      .then((result) => {
+        const active = result.filter(
+          (appointment) =>
+            appointment.status !== "completed" && appointment.status !== "cancelled",
+        );
+        setAppointments(result);
+        setSelectedAppointmentId(active[0]?._id ?? result[0]?._id ?? "");
+      })
       .catch((error: unknown) => {
         setActionError(
           error instanceof Error ? error.message : "Unable to load consultation session.",
@@ -48,13 +56,20 @@ export default function DoctorSessionPage() {
       });
   }, [user]);
 
-  const activeAppointment = useMemo(
+  const sessionAppointments = useMemo(
     () =>
-      appointments.find(
+      appointments.filter(
         (appointment) =>
           appointment.status !== "completed" && appointment.status !== "cancelled",
-      ) ?? null,
+      ),
     [appointments],
+  );
+  const activeAppointment = useMemo(
+    () =>
+      appointments.find((appointment) => appointment._id === selectedAppointmentId) ??
+      sessionAppointments[0] ??
+      null,
+    [appointments, selectedAppointmentId, sessionAppointments],
   );
 
   async function handleJoin() {
@@ -130,9 +145,55 @@ export default function DoctorSessionPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_0.4fr]">
+      <div className="grid gap-5 xl:grid-cols-[1fr_0.42fr]">
         <section className="rounded-xl border border-[#12324d]/10 bg-white p-5 sm:p-6">
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                Choose patient session
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pick the consultation you want to open or complete.
+              </p>
+            </div>
+            <Badge variant="outline">{sessionAppointments.length} active</Badge>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            {sessionAppointments.map((appointment) => (
+              <button
+                key={appointment._id}
+                type="button"
+                onClick={() => setSelectedAppointmentId(appointment._id)}
+                className={
+                  selectedAppointmentId === appointment._id
+                    ? "rounded-xl border border-primary bg-primary/5 px-4 py-4 text-left"
+                    : "rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4 text-left"
+                }
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">{appointment.patientName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatAppointmentDate(appointment.scheduledStartAt)} •{" "}
+                      {formatAppointmentTimeRange(
+                        appointment.scheduledStartAt,
+                        appointment.scheduledEndAt,
+                      )}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{formatStatus(appointment.status)}</Badge>
+                </div>
+              </button>
+            ))}
+            {sessionAppointments.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-[#12324d]/10 bg-[#fcfaf5] px-4 py-8 text-center text-sm text-muted-foreground">
+                No active patient sessions yet.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
             <Button
               className="h-11 rounded-xl"
               disabled={!activeAppointment}

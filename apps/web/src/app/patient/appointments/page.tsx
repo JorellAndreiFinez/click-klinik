@@ -14,6 +14,7 @@ import {
   ExternalLink,
   HeartPulse,
   Search,
+  Star,
   Video,
   XCircle,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import { formatPhp } from "@/features/appointments/booking-catalog";
 import {
   getMyPatientAppointments,
   joinAppointment,
+  rateAppointmentDoctor,
   requestAppointmentRefund,
   refreshAppointmentPaymentStatus,
   updateAppointmentStatus,
@@ -66,6 +68,9 @@ export default function PatientAppointmentsPage() {
   const [dateScope, setDateScope] = useState<DateScope>("all");
   const [activePeriod, setActivePeriod] = useState<DayPeriod>("am");
   const [viewMode, setViewMode] = useState<AppointmentViewMode>("calendar");
+  const [ratingStars, setRatingStars] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   useEffect(() => {
     if (!configured) {
@@ -222,6 +227,35 @@ export default function PatientAppointmentsPage() {
     }
   }
 
+  async function handleSubmitRating(appointmentId: string) {
+    if (!user) {
+      return;
+    }
+
+    setActionError(null);
+    setSubmittingRating(true);
+
+    try {
+      const updated = await rateAppointmentDoctor(user, appointmentId, {
+        stars: ratingStars,
+        comment: ratingComment.trim() || undefined,
+      });
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment._id === appointmentId ? updated : appointment,
+        ),
+      );
+      setRatingStars(5);
+      setRatingComment("");
+    } catch (error: unknown) {
+      setActionError(
+        error instanceof Error ? error.message : "Unable to save your rating.",
+      );
+    } finally {
+      setSubmittingRating(false);
+    }
+  }
+
   async function refreshPendingXenditPayments(
     nextUser: User,
     nextAppointments: Appointment[],
@@ -306,6 +340,14 @@ export default function PatientAppointmentsPage() {
   const selectedDayCount = calendarRows.reduce(
     (count, row) => count + row.appointments.length,
     0,
+  );
+  const pendingRatingAppointment = useMemo(
+    () =>
+      appointments.find(
+        (appointment) =>
+          appointment.status === "completed" && !appointment.patientHasRatedDoctor,
+      ) ?? null,
+    [appointments],
   );
 
   if (!profile) {
@@ -653,6 +695,64 @@ export default function PatientAppointmentsPage() {
           </div>
         </div>
       ) : null}
+
+      {pendingRatingAppointment ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#082b45]/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#12324d]/10 bg-white p-6 shadow-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
+              Consultation completed
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-primary">
+              How was your doctor?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Your rating helps Click Klinik keep care quality high for Filipino patients.
+            </p>
+            <div className="mt-5 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+              <p className="font-bold text-primary">{pendingRatingAppointment.doctorName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {pendingRatingAppointment.consultationLabel || pendingRatingAppointment.specializationName}
+              </p>
+            </div>
+            <div className="mt-5 flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRatingStars(star)}
+                  className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] p-2"
+                  aria-label={`Rate ${star} star${star === 1 ? "" : "s"}`}
+                >
+                  <Star
+                    className={
+                      star <= ratingStars
+                        ? "size-8 fill-secondary text-secondary"
+                        : "size-8 text-muted-foreground"
+                    }
+                  />
+                </button>
+              ))}
+            </div>
+            <label className="mt-5 block text-sm font-semibold text-primary">
+              Optional comment
+            </label>
+            <textarea
+              value={ratingComment}
+              onChange={(event) => setRatingComment(event.target.value)}
+              className="mt-2 min-h-24 w-full rounded-xl border border-[#12324d]/15 bg-[#fcfaf5] px-4 py-3 text-sm outline-none focus:border-primary"
+              placeholder="Example: The doctor explained things clearly."
+            />
+            <Button
+              type="button"
+              className="mt-5 h-11 w-full rounded-xl"
+              disabled={submittingRating}
+              onClick={() => void handleSubmitRating(pendingRatingAppointment._id)}
+            >
+              {submittingRating ? "Saving rating..." : "Submit rating"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </PatientWorkspaceShell>
   );
 }
@@ -939,6 +1039,14 @@ function AppointmentRow({
               </Link>
             </Button>
           ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-xl"
+            onClick={() => downloadAppointmentReceipt(appointment)}
+          >
+            Receipt
+          </Button>
         </div>
       </div>
     </article>
@@ -1376,4 +1484,82 @@ function formatWeekdayDate(date: Date) {
     day: "numeric",
     year: "numeric",
   }).format(date);
+}
+
+function downloadAppointmentReceipt(appointment: Appointment) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    return;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Click Klinik Receipt</title>
+        <style>
+          @page { size: A4; margin: 18mm; }
+          body { color: #082b45; font-family: Georgia, "Times New Roman", serif; margin: 0; }
+          .paper { min-height: 94vh; position: relative; }
+          .watermark {
+            color: rgba(8, 43, 69, 0.07);
+            font-size: 76px;
+            font-weight: 800;
+            left: 50%;
+            letter-spacing: 8px;
+            position: fixed;
+            text-transform: uppercase;
+            top: 48%;
+            transform: translate(-50%, -50%) rotate(-28deg);
+            white-space: nowrap;
+          }
+          .content { position: relative; z-index: 1; }
+          header { border-bottom: 2px solid #082b45; padding-bottom: 14px; }
+          h1 { font-size: 28px; margin: 0; }
+          .muted { color: #49657a; font-size: 13px; }
+          .grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-top: 20px; }
+          .box { border: 1px solid #d8d0c2; border-radius: 10px; padding: 12px; }
+          .label { color: #49657a; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+          .value { font-size: 15px; font-weight: 700; margin-top: 5px; }
+          .total { background: #f7f2e8; border: 1px solid #d8d0c2; border-radius: 14px; margin-top: 24px; padding: 18px; }
+          footer { border-top: 1px solid #d8d0c2; bottom: 0; color: #49657a; font-size: 11px; padding-top: 10px; position: absolute; width: 100%; }
+        </style>
+      </head>
+      <body>
+        <div class="paper">
+          <div class="watermark">click-klinik</div>
+          <div class="content">
+            <header>
+              <h1>Click Klinik Receipt</h1>
+              <p class="muted">Appointment and payment copy</p>
+            </header>
+            <section class="grid">
+              <div class="box"><div class="label">Patient</div><div class="value">${escapeReceiptHtml(appointment.patientName)}</div></div>
+              <div class="box"><div class="label">Doctor</div><div class="value">${escapeReceiptHtml(appointment.doctorName)}</div></div>
+              <div class="box"><div class="label">Consultation</div><div class="value">${escapeReceiptHtml(appointment.consultationLabel || appointment.specializationName)}</div></div>
+              <div class="box"><div class="label">Schedule</div><div class="value">${escapeReceiptHtml(formatAppointmentTimeRange(appointment.scheduledStartAt, appointment.scheduledEndAt))}</div></div>
+              <div class="box"><div class="label">Payment status</div><div class="value">${escapeReceiptHtml(getPaymentMeta(appointment.paymentStatus).label)}</div></div>
+              <div class="box"><div class="label">Reference</div><div class="value">${escapeReceiptHtml(appointment.paymentReferenceId || appointment._id)}</div></div>
+            </section>
+            <section class="total">
+              <div class="label">Total amount</div>
+              <div class="value">${escapeReceiptHtml(formatAppointmentFee(appointment.totalFeePhp))}</div>
+            </section>
+          </div>
+          <footer>Watermark: click-klinik. This is a hackathon test-mode payment receipt.</footer>
+        </div>
+        <script>window.onload = () => window.print();</script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function escapeReceiptHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

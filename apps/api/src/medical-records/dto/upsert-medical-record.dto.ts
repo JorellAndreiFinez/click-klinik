@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsDateString,
   IsOptional,
   IsString,
   MaxLength,
@@ -27,6 +28,32 @@ class PrescriptionItemDto {
   @IsString()
   @MaxLength(80)
   duration?: string;
+}
+
+class MedicalCertificateDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  body?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  remarks?: string;
+
+  @IsOptional()
+  @IsDateString()
+  issuedAt?: string;
 }
 
 export class UpsertMedicalRecordDto {
@@ -56,4 +83,19 @@ export class UpsertMedicalRecordDto {
   @ArrayMaxSize(20)
   @IsOptional()
   prescriptions?: PrescriptionItemDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500000)
+  doctorSignatureDataUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  doctorSignatureText?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MedicalCertificateDto)
+  medicalCertificate?: MedicalCertificateDto;
 }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
@@ -11,12 +12,14 @@ import {
   ChevronRight,
   FileText,
   HeartPulse,
+  Menu,
   Search,
   ShieldCheck,
   Star,
   Stethoscope,
   UserRound,
   Video,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -30,23 +33,24 @@ const featuredDoctorPhoto =
 export default function Home() {
   const { locale } = useLocale();
   const t = landingTranslations[locale];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <main className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="Click Klinik home">
-            <span className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-              <HeartPulse className="size-6" />
+      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="Click Klinik home">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground sm:size-11">
+              <HeartPulse className="size-5 sm:size-6" />
             </span>
-            <span>
-              <span className="block text-xl font-bold tracking-tight">Click Klinik</span>
-              <span className="block text-xs text-muted-foreground">{t.brandTagline}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-base font-bold tracking-tight text-primary sm:text-xl">Click Klinik</span>
+              <span className="hidden truncate text-xs text-muted-foreground sm:block">{t.brandTagline}</span>
             </span>
           </Link>
 
           <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground lg:flex">
-            <Link href="#find-doctor" className="transition-colors hover:text-primary">
+            <Link href="/auth" className="transition-colors hover:text-primary">
               {t.nav.consult}
             </Link>
             <Link href="#features" className="transition-colors hover:text-primary">
@@ -60,13 +64,47 @@ export default function Home() {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <LanguageSelector />
-            <Button asChild className="hidden h-11 rounded-xl px-5 sm:inline-flex">
-              <Link href="/auth">{t.nav.patientAuth}</Link>
+            <Button asChild className="hidden h-11 rounded-xl px-5 text-sm sm:inline-flex">
+              <Link href="/auth">
+                {t.nav.patientAuth}
+              </Link>
             </Button>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+              className="inline-flex size-10 items-center justify-center rounded-xl border border-border bg-card text-primary lg:hidden"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            </button>
           </div>
         </div>
+        {mobileMenuOpen ? (
+          <div className="border-t border-border/70 bg-background px-4 py-4 shadow-[0_18px_45px_-35px_rgba(8,43,69,0.85)] lg:hidden">
+            <nav className="mx-auto grid max-w-md gap-2 text-sm font-semibold text-primary">
+              <MobileNavLink href="/auth" onClick={() => setMobileMenuOpen(false)}>
+                {t.nav.consult}
+              </MobileNavLink>
+              <MobileNavLink href="#features" onClick={() => setMobileMenuOpen(false)}>
+                {t.nav.portals}
+              </MobileNavLink>
+              <MobileNavLink href="/professionals/apply" onClick={() => setMobileMenuOpen(false)}>
+                {t.nav.professionals}
+              </MobileNavLink>
+              <MobileNavLink href="#safety" onClick={() => setMobileMenuOpen(false)}>
+                {t.nav.safety}
+              </MobileNavLink>
+              <Button asChild className="mt-2 h-11 rounded-xl">
+                <Link href="/auth" onClick={() => setMobileMenuOpen(false)}>
+                  {t.nav.patientAuth}
+                </Link>
+              </Button>
+            </nav>
+          </div>
+        ) : null}
       </header>
 
       <section className="clinic-grid">
@@ -86,7 +124,7 @@ export default function Home() {
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-13 rounded-xl px-7 text-base">
-                <Link href="#find-doctor">
+                <Link href="/auth">
                   {t.hero.book}
                   <ArrowRight className="size-4" />
                 </Link>
@@ -151,7 +189,7 @@ export default function Home() {
                 asChild
                 className="mt-3 h-12 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/90"
               >
-                <Link href="#find-doctor">
+                <Link href="/auth">
                   {t.hero.book}
                   <ChevronRight className="size-4" />
                 </Link>
@@ -285,7 +323,7 @@ function FeaturedDoctors({ copy }: { copy: LandingCopy }) {
                 asChild
                 className="h-12 rounded-xl bg-secondary px-6 text-secondary-foreground hover:bg-secondary/90"
               >
-                <Link href="#find-doctor">
+                <Link href="/auth">
                   {copy.featuredDoctors.book}
                   <ArrowRight className="size-4" />
                 </Link>
@@ -342,7 +380,7 @@ function ConsultationHandoff({ copy }: { copy: LandingCopy }) {
             </span>
           </div>
           <Button asChild className="h-11 rounded-xl px-5">
-            <Link href="#find-doctor">{copy.hero.book}</Link>
+            <Link href="/auth">{copy.hero.book}</Link>
           </Button>
         </div>
       </div>
@@ -474,6 +512,19 @@ function BookingPreview({ copy }: { copy: LandingCopy }) {
           <AppointmentDetail icon={<Video />} value={copy.appointment.whereValue} />
         </div>
       </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <Button asChild className="h-11 rounded-xl">
+          <Link href="/auth">
+            Start patient booking
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="h-11 rounded-xl bg-background">
+          <Link href="/professionals/apply">
+            Doctor application
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -484,6 +535,27 @@ function AppointmentDetail({ icon, value }: { icon: ReactNode; value: string }) 
       <span className="text-secondary [&_svg]:size-4">{icon}</span>
       <span className="truncate">{value}</span>
     </div>
+  );
+}
+
+function MobileNavLink({
+  href,
+  children,
+  onClick,
+}: {
+  href: string;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="flex h-12 items-center justify-between rounded-xl border border-border bg-card px-4 transition-colors hover:border-primary/30 hover:bg-primary/[0.04]"
+    >
+      <span>{children}</span>
+      <ChevronRight className="size-4 text-muted-foreground" />
+    </Link>
   );
 }
 

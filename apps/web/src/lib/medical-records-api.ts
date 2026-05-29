@@ -22,9 +22,27 @@ export type MedicalRecord = {
   privateNote?: string;
   recommendations?: string;
   prescriptions: PrescriptionItem[];
+  doctorSignatureDataUrl?: string;
+  doctorSignatureText?: string;
+  medicalCertificate?: MedicalCertificate;
   createdAt: string;
   updatedAt: string;
   canViewPrivateNote?: boolean;
+};
+
+export type MedicalCertificate = {
+  _id?: string;
+  appointmentId?: string;
+  patientId?: string;
+  patientName?: string;
+  doctorApplicationId?: string;
+  doctorName?: string;
+  specializationName?: string;
+  code?: string;
+  title?: string;
+  body?: string;
+  remarks?: string;
+  issuedAt?: string;
 };
 
 export type DoctorPatientListItem = {
@@ -70,6 +88,9 @@ export type UpsertMedicalRecordInput = {
   privateNote?: string;
   recommendations?: string;
   prescriptions?: PrescriptionItem[];
+  doctorSignatureDataUrl?: string;
+  doctorSignatureText?: string;
+  medicalCertificate?: MedicalCertificate;
 };
 
 export async function getMyPatientRecords(user: User): Promise<PatientRecordsView> {
@@ -137,6 +158,27 @@ export async function saveMyDoctorAppointmentRecord(
   );
 }
 
+export async function saveMyDoctorAppointmentCertificate(
+  user: User,
+  appointmentId: string,
+  input: MedicalCertificate & {
+    doctorSignatureDataUrl?: string;
+    doctorSignatureText?: string;
+  },
+): Promise<MedicalCertificate> {
+  const savedRecord = await saveMyDoctorAppointmentRecord(user, appointmentId, {
+    doctorSignatureDataUrl: input.doctorSignatureDataUrl,
+    doctorSignatureText: input.doctorSignatureText,
+    medicalCertificate: input,
+  });
+
+  if (!savedRecord.medicalCertificate) {
+    throw new Error("Medical certificate was not saved. Please restart the API server and try again.");
+  }
+
+  return savedRecord.medicalCertificate;
+}
+
 async function medicalRecordsRequest<T>(
   user: User,
   pathname: string,
@@ -170,5 +212,11 @@ async function medicalRecordsRequest<T>(
     throw new Error(message);
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return null as T;
+  }
+
+  return JSON.parse(text) as T;
 }

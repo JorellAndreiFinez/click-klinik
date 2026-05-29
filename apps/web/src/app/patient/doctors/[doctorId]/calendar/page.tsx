@@ -253,8 +253,11 @@ export default function PatientDoctorCalendarPage() {
     (selectedConsultation?.feePhp ?? 0) +
     selectedAddOns.reduce((sum, item) => sum + item.feePhp, 0);
 
+  const futureGeneratedSlots = generatedSlots.filter(
+    (slot) => !isPastBookableSlot(slot),
+  );
   const availableDateSet = new Set(
-    generatedSlots.map((slot) => toDateOnly(new Date(slot.startAt))),
+    futureGeneratedSlots.map((slot) => toDateOnly(new Date(slot.startAt))),
   );
   const calendarDays = buildCalendarMonthDays(calendarMonth, availableDateSet);
 
@@ -1099,7 +1102,7 @@ function CalendarDateButton({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const disabled = !day.available || day.past;
+  const disabled = !day.available;
 
   return (
     <button
@@ -1117,7 +1120,9 @@ function CalendarDateButton({
       }
       title={
         day.available
-          ? "Doctor is available on this date"
+          ? "Doctor has future availability on this date"
+          : day.past
+            ? "No future time slots remain on this date"
           : "Doctor has no availability on this date"
       }
     >

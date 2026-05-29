@@ -10,6 +10,7 @@ import {
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { MedicalRecordsService } from './medical-records.service';
+import { UpsertMedicalCertificateDto } from './dto/upsert-medical-certificate.dto';
 import { UpsertMedicalRecordDto } from './dto/upsert-medical-record.dto';
 import { MedicalRecord } from './schemas/medical-record.schema';
 
@@ -57,6 +58,19 @@ export class MedicalRecordsController {
     @Body() dto: UpsertMedicalRecordDto,
   ): Promise<MedicalRecord> {
     return this.medicalRecordsService.upsertDoctorAppointmentRecord(
+      request.user,
+      appointmentId,
+      dto,
+    );
+  }
+
+  @Put('me/doctor/appointments/:appointmentId/certificate')
+  upsertDoctorAppointmentCertificate(
+    @Req() request: AuthenticatedRequest,
+    @Param('appointmentId') appointmentId: string,
+    @Body() dto: UpsertMedicalCertificateDto,
+  ) {
+    return this.medicalRecordsService.upsertDoctorAppointmentCertificate(
       request.user,
       appointmentId,
       dto,

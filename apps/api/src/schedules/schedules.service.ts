@@ -441,23 +441,33 @@ export class SchedulesService {
         continue;
       }
 
-      const overlapsProtectedSlot = protectedSlots.some(
-        (slot) => slot.startAt < endAt && slot.endAt > startAt,
-      );
+      let segments = [{ startAt, endAt }];
 
-      if (overlapsProtectedSlot) {
-        continue;
+      for (const protectedSlot of protectedSlots) {
+        segments = segments.flatMap((segment) =>
+          subtractSegment(segment, {
+            startAt: protectedSlot.startAt,
+            endAt: protectedSlot.endAt,
+          }),
+        );
       }
 
-      creatableSlots.push({
-        doctorApplicationId,
-        doctorEmail,
-        startAt,
-        endAt,
-        status: entry.status === 'available' ? 'available' : 'unavailable',
-        source: 'template',
-        note: `Weekly availability template for ${DAY_LABELS[entry.dayOfWeek]}`,
-      });
+      creatableSlots.push(
+        ...segments
+          .filter((segment) => segment.endAt > segment.startAt)
+          .map((segment) => ({
+            doctorApplicationId,
+            doctorEmail,
+            startAt: segment.startAt,
+            endAt: segment.endAt,
+            status:
+              entry.status === 'available'
+                ? ('available' as const)
+                : ('unavailable' as const),
+            source: 'template' as const,
+            note: `Weekly availability template for ${DAY_LABELS[entry.dayOfWeek]}`,
+          })),
+      );
     }
 
     if (creatableSlots.length > 0) {

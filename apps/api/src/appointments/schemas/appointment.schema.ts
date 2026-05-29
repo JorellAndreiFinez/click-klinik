@@ -215,6 +215,18 @@ export class Appointment {
 
   @Prop({ trim: true })
   refundProviderStatus?: string;
+
+  @Prop({ required: true, default: false })
+  patientHasRatedDoctor!: boolean;
+
+  @Prop({ min: 1, max: 5 })
+  doctorRatingStars?: number;
+
+  @Prop({ trim: true })
+  doctorRatingComment?: string;
+
+  @Prop()
+  doctorRatedAt?: Date;
 }
 
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment);

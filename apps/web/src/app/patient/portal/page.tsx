@@ -22,6 +22,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getMyPatientAppointments, type Appointment } from "@/lib/appointments-api";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
+import {
+  getMyPatientRecords,
+  type MedicalRecord,
+} from "@/lib/medical-records-api";
 import { getMyPatientProfile, type PatientProfile } from "@/lib/patient-api";
 
 export default function PatientPortalPage() {
@@ -29,6 +33,7 @@ export default function PatientPortalPage() {
   const firebaseConfigured = isFirebaseConfigured();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [receivedRecords, setReceivedRecords] = useState<MedicalRecord[]>([]);
   const [doctorSearchNeed, setDoctorSearchNeed] = useState("");
   const [message, setMessage] = useState(
     firebaseConfigured
@@ -51,12 +56,14 @@ export default function PatientPortalPage() {
       }
 
       const loadPortalData = async () => {
-        const [patient, nextAppointments] = await Promise.all([
+        const [patient, nextAppointments, recordsView] = await Promise.all([
           getMyPatientProfile(user),
           getMyPatientAppointments(user),
+          getMyPatientRecords(user),
         ]);
         setProfile(patient);
         setAppointments(nextAppointments);
+        setReceivedRecords(recordsView.records);
       };
 
       void loadPortalData().catch(() => {
@@ -127,9 +134,7 @@ export default function PatientPortalPage() {
     [appointments],
   );
   const nextAppointment = activeAppointments[0];
-  const latestRecord = appointments.find(
-    (appointment) => appointment.status === "completed",
-  );
+  const latestRecord = receivedRecords[0];
   const locationText =
     profile && [profile.cityMunicipalityName, profile.provinceName]
       .filter(Boolean)
@@ -205,7 +210,11 @@ export default function PatientPortalPage() {
                 href="/patient/records"
                 icon={<FileText className="size-5" />}
                 title="My records"
-                copy={latestRecord ? "Latest doctor notes available" : "Notes and prescriptions"}
+                copy={
+                  receivedRecords.length
+                    ? `${receivedRecords.length} doctor record${receivedRecords.length === 1 ? "" : "s"} received`
+                    : "Notes and prescriptions"
+                }
               />
             </div>
 
@@ -312,6 +321,42 @@ export default function PatientPortalPage() {
 
             <section className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                Latest doctor record
+              </p>
+              {latestRecord ? (
+                <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+                  <p className="font-semibold text-primary">{latestRecord.doctorName}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {latestRecord.specializationName}
+                  </p>
+                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                    {buildRecordPreview(latestRecord)}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {latestRecord.publicNote ? (
+                      <Badge variant="secondary">Doctor note</Badge>
+                    ) : null}
+                    {latestRecord.prescriptions.length ? (
+                      <Badge variant="secondary">Prescription</Badge>
+                    ) : null}
+                    {latestRecord.medicalCertificate ? (
+                      <Badge variant="secondary">Certificate</Badge>
+                    ) : null}
+                  </div>
+                  <Button asChild variant="outline" className="mt-4 h-10 rounded-xl">
+                    <Link href="/patient/records">Open records</Link>
+                  </Button>
+                </div>
+              ) : (
+                <p className="mt-4 rounded-xl border border-dashed border-[#12324d]/12 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
+                  Doctor notes, prescriptions, and certificates will appear here after
+                  your consultation.
+                </p>
+              )}
+            </section>
+
+            <section className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
                 Quick links
               </p>
               <div className="mt-4 grid gap-2">
@@ -412,4 +457,17 @@ function formatTime(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function buildRecordPreview(record: MedicalRecord) {
+  const parts = [
+    record.publicNote ? `Note: ${record.publicNote}` : "",
+    record.recommendations ? `Advice: ${record.recommendations}` : "",
+    record.prescriptions.length
+      ? `${record.prescriptions.length} prescription item${record.prescriptions.length === 1 ? "" : "s"}`
+      : "",
+    record.medicalCertificate ? "Medical certificate issued" : "",
+  ].filter(Boolean);
+
+  return parts.join(" / ") || "A doctor record is ready for review.";
 }

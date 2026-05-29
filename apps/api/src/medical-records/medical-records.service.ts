@@ -9,7 +9,9 @@ import { HydratedDocument, Model } from 'mongoose';
 import { Appointment } from '../appointments/schemas/appointment.schema';
 import { Doctor } from '../doctors/schemas/doctor.schema';
 import { Patient } from '../patients/schemas/patient.schema';
+import { UpsertMedicalCertificateDto } from './dto/upsert-medical-certificate.dto';
 import { UpsertMedicalRecordDto } from './dto/upsert-medical-record.dto';
+import { MedicalCertificate } from './schemas/medical-certificate.schema';
 import { MedicalRecord } from './schemas/medical-record.schema';
 
 type DoctorPatientListItem = {
@@ -51,7 +53,12 @@ type DoctorPatientDetail = {
 
 type PatientRecordsView = {
   appointments: Appointment[];
-  records: MedicalRecord[];
+  records: Array<
+    Omit<MedicalRecord, 'privateNote'> & {
+      privateNote?: undefined;
+      canViewPrivateNote: false;
+    }
+  >;
 };
 
 @Injectable()
@@ -59,6 +66,8 @@ export class MedicalRecordsService {
   constructor(
     @InjectModel(MedicalRecord.name)
     private readonly medicalRecordModel: Model<MedicalRecord>,
+    @InjectModel(MedicalCertificate.name)
+    private readonly medicalCertificateModel: Model<MedicalCertificate>,
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<Appointment>,
     @InjectModel(Patient.name) private readonly patientModel: Model<Patient>,
@@ -197,8 +206,19 @@ export class MedicalRecordsService {
       String(doctor._id),
       appointmentId,
     );
+    const certificate = buildMedicalCertificatePayload(dto, appointment);
+    const signatureText =
+      dto.doctorSignatureText?.trim() || appointment.doctorName;
+    const prescriptions = dto.prescriptions
+      ?.map((item) => ({
+        medicine: item.medicine.trim(),
+        dosage: item.dosage?.trim() || undefined,
+        instruction: item.instruction?.trim() || undefined,
+        duration: item.duration?.trim() || undefined,
+      }))
+      .filter((item) => item.medicine);
 
-    return (await this.medicalRecordModel
+    const savedRecord = (await this.medicalRecordModel
       .findOneAndUpdate(
         { appointmentId },
         {
@@ -212,15 +232,11 @@ export class MedicalRecordsService {
             publicNote: dto.publicNote?.trim() || undefined,
             privateNote: dto.privateNote?.trim() || undefined,
             recommendations: dto.recommendations?.trim() || undefined,
-            prescriptions:
-              dto.prescriptions
-                ?.map((item) => ({
-                  medicine: item.medicine.trim(),
-                  dosage: item.dosage?.trim() || undefined,
-                  instruction: item.instruction?.trim() || undefined,
-                  duration: item.duration?.trim() || undefined,
-                }))
-                .filter((item) => item.medicine) ?? [],
+            ...(prescriptions ? { prescriptions } : {}),
+            doctorSignatureDataUrl:
+              dto.doctorSignatureDataUrl?.trim() || undefined,
+            doctorSignatureText: signatureText,
+            ...(certificate ? { medicalCertificate: certificate } : {}),
           },
         },
         {
@@ -230,6 +246,105 @@ export class MedicalRecordsService {
         },
       )
       .exec()) as MedicalRecord;
+
+    if (certificate) {
+      await this.medicalCertificateModel
+        .findOneAndUpdate(
+          { appointmentId },
+          {
+            $set: {
+              appointmentId,
+              patientId: appointment.patientId,
+              patientName: appointment.patientName,
+              doctorApplicationId: appointment.doctorApplicationId,
+              doctorName: appointment.doctorName,
+              specializationName: appointment.specializationName,
+              ...certificate,
+              doctorSignatureDataUrl:
+                dto.doctorSignatureDataUrl?.trim() || undefined,
+              doctorSignatureText: signatureText,
+            },
+          },
+          { new: true, upsert: true, runValidators: true },
+        )
+        .exec();
+    }
+
+    return savedRecord;
+  }
+
+  async upsertDoctorAppointmentCertificate(
+    user: DecodedIdToken,
+    appointmentId: string,
+    dto: UpsertMedicalCertificateDto,
+  ): Promise<MedicalCertificate> {
+    const doctor = await this.getApprovedDoctor(user);
+    const appointment = await this.assertDoctorOwnsAppointment(
+      String(doctor._id),
+      appointmentId,
+    );
+    const issuedAt = dto.issuedAt ? new Date(dto.issuedAt) : new Date();
+    const certificate = {
+      code: dto.code?.trim() || getCertificateAddOnCode(appointment),
+      title: dto.title?.trim() || getCertificateAddOnTitle(appointment),
+      body: dto.body.trim() || buildDefaultCertificateBody(appointment),
+      remarks:
+        dto.remarks?.trim() ||
+        'Issued after Click Klinik teleconsultation evaluation.',
+      issuedAt: Number.isNaN(issuedAt.getTime()) ? new Date() : issuedAt,
+      doctorSignatureDataUrl: dto.doctorSignatureDataUrl?.trim() || undefined,
+      doctorSignatureText: dto.doctorSignatureText?.trim() || appointment.doctorName,
+    };
+
+    const savedCertificate = await this.medicalCertificateModel
+      .findOneAndUpdate(
+        { appointmentId },
+        {
+          $set: {
+            appointmentId,
+            patientId: appointment.patientId,
+            patientName: appointment.patientName,
+            doctorApplicationId: appointment.doctorApplicationId,
+            doctorName: appointment.doctorName,
+            specializationName: appointment.specializationName,
+            ...certificate,
+          },
+        },
+        { new: true, upsert: true, runValidators: true },
+      )
+      .exec();
+
+    await this.medicalRecordModel
+      .findOneAndUpdate(
+        { appointmentId },
+        {
+          $set: {
+            appointmentId,
+            patientId: appointment.patientId,
+            patientName: appointment.patientName,
+            doctorApplicationId: appointment.doctorApplicationId,
+            doctorName: appointment.doctorName,
+            specializationName: appointment.specializationName,
+            doctorSignatureDataUrl: certificate.doctorSignatureDataUrl,
+            doctorSignatureText: certificate.doctorSignatureText,
+            medicalCertificate: {
+              code: certificate.code,
+              title: certificate.title,
+              body: certificate.body,
+              remarks: certificate.remarks,
+              issuedAt: certificate.issuedAt,
+            },
+          },
+        },
+        { new: true, upsert: true, runValidators: true },
+      )
+      .exec();
+
+    if (!savedCertificate) {
+      throw new NotFoundException('Medical certificate was not saved.');
+    }
+
+    return savedCertificate;
   }
 
   async getPatientRecords(user: DecodedIdToken): Promise<PatientRecordsView> {
@@ -248,10 +363,76 @@ export class MedicalRecordsService {
       .exec();
     const records = await this.medicalRecordModel
       .find({ patientId })
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean()
       .exec();
+    const certificates = await this.medicalCertificateModel
+      .find({ patientId })
+      .sort({ issuedAt: -1, createdAt: -1 })
+      .lean()
+      .exec();
+    const certificatesByAppointmentId = new Map(
+      certificates.map((certificate) => [
+        certificate.appointmentId,
+        certificate,
+      ]),
+    );
+    const appointmentsById = new Map(
+      appointments.map((appointment) => [String(appointment._id), appointment]),
+    );
+    const recordsWithCertificates = await Promise.all(
+      records.map(async (record) => {
+        if (record.medicalCertificate) {
+          const savedCertificate = certificatesByAppointmentId.get(
+            record.appointmentId,
+          );
+          return savedCertificate
+            ? mergeRecordCertificate(record, savedCertificate)
+            : record;
+        }
 
-    return { appointments, records };
+        const savedCertificate = certificatesByAppointmentId.get(record.appointmentId);
+        if (savedCertificate) {
+          return mergeRecordCertificate(record, savedCertificate);
+        }
+
+        const appointment = appointmentsById.get(record.appointmentId);
+        const certificate = appointment
+          ? buildMedicalCertificatePayload({} as UpsertMedicalRecordDto, appointment)
+          : undefined;
+
+        if (!certificate) {
+          return record;
+        }
+
+        await this.medicalRecordModel
+          .updateOne(
+            { _id: record._id },
+            {
+              $set: {
+                medicalCertificate: certificate,
+                doctorSignatureText: record.doctorSignatureText ?? record.doctorName,
+              },
+            },
+          )
+          .exec();
+
+        return {
+          ...record,
+          doctorSignatureText: record.doctorSignatureText ?? record.doctorName,
+          medicalCertificate: certificate,
+        };
+      }),
+    );
+
+    return {
+      appointments,
+      records: recordsWithCertificates.map((record) => ({
+        ...record,
+        privateNote: undefined,
+        canViewPrivateNote: false,
+      })),
+    };
   }
 
   private async getApprovedDoctor(
@@ -312,4 +493,113 @@ function computeAge(birthdate?: Date): number | undefined {
   }
 
   return age;
+}
+
+function buildMedicalCertificatePayload(
+  dto: UpsertMedicalRecordDto,
+  appointment: Appointment,
+):
+  | {
+      code?: string;
+      title?: string;
+      body?: string;
+      remarks?: string;
+      issuedAt: Date;
+    }
+  | undefined {
+  const requestedAddOn = appointment.addOns.find((addOn) =>
+    isMedicalCertificateAddOn(addOn.code, addOn.label),
+  );
+  const certificate = dto.medicalCertificate;
+  const hasCertificateInput = Boolean(
+    certificate?.title?.trim() ||
+      certificate?.body?.trim() ||
+      certificate?.remarks?.trim(),
+  );
+
+  if (!requestedAddOn && !hasCertificateInput) {
+    return undefined;
+  }
+
+  const title =
+    certificate?.title?.trim() ||
+    requestedAddOn?.label ||
+    'Medical Certificate';
+  const code =
+    certificate?.code?.trim() || requestedAddOn?.code || 'medical_certificate';
+  const body =
+    certificate?.body?.trim() || buildDefaultCertificateBody(appointment);
+  const issuedAt = certificate?.issuedAt
+    ? new Date(certificate.issuedAt)
+    : new Date();
+
+  return {
+    code,
+    title,
+    body,
+    remarks:
+      certificate?.remarks?.trim() ||
+      'Issued after Click Klinik teleconsultation evaluation.',
+    issuedAt: Number.isNaN(issuedAt.getTime()) ? new Date() : issuedAt,
+  };
+}
+
+function isMedicalCertificateAddOn(code?: string, label?: string): boolean {
+  const normalizedCode = code?.toLowerCase() ?? '';
+  const normalizedLabel = label?.toLowerCase() ?? '';
+
+  return (
+    normalizedCode.includes('medical_certificate') ||
+    normalizedLabel.includes('medical certificate')
+  );
+}
+
+function buildDefaultCertificateBody(appointment: Appointment): string {
+  const consultationDate = new Intl.DateTimeFormat('en-PH', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(appointment.scheduledStartAt));
+
+  return `This is to certify that ${appointment.patientName} was evaluated through a Click Klinik teleconsultation on ${consultationDate}.
+
+Based on the consultation and the information provided, this certificate verifies the patient's reported health status and medical consultation for ${appointment.consultationLabel || appointment.specializationName}.
+
+This certificate is issued upon the patient's request for appropriate documentation purposes, subject to the limitations of telehealth evaluation.`;
+}
+
+function getCertificateAddOnCode(appointment: Appointment): string {
+  return (
+    appointment.addOns.find((addOn) =>
+      isMedicalCertificateAddOn(addOn.code, addOn.label),
+    )?.code ?? 'medical_certificate'
+  );
+}
+
+function getCertificateAddOnTitle(appointment: Appointment): string {
+  return (
+    appointment.addOns.find((addOn) =>
+      isMedicalCertificateAddOn(addOn.code, addOn.label),
+    )?.label ?? 'Medical Certificate'
+  );
+}
+
+function mergeRecordCertificate(
+  record: MedicalRecord & { _id?: unknown; __v?: number },
+  certificate: MedicalCertificate & { _id?: unknown; __v?: number },
+) {
+  return {
+    ...record,
+    doctorSignatureDataUrl:
+      certificate.doctorSignatureDataUrl ?? record.doctorSignatureDataUrl,
+    doctorSignatureText:
+      certificate.doctorSignatureText ?? record.doctorSignatureText,
+    medicalCertificate: {
+      code: certificate.code,
+      title: certificate.title,
+      body: certificate.body,
+      remarks: certificate.remarks,
+      issuedAt: certificate.issuedAt,
+    },
+  } as MedicalRecord & { _id?: unknown; __v?: number };
 }

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BookOpenText,
-  CalendarCheck2,
   CalendarDays,
   CalendarRange,
   ClipboardPenLine,
@@ -15,7 +14,13 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
-import { getMyDoctorAppointments, type Appointment } from "@/lib/appointments-api";
+import {
+  getMyDoctorAppointments,
+  getMyDoctorPayouts,
+  type Appointment,
+  type DoctorPayout,
+  type DoctorPayoutSummary,
+} from "@/lib/appointments-api";
 import {
   getMyScheduleSlots,
   type ScheduleSlot,
@@ -25,6 +30,7 @@ export default function DoctorDashboardPage() {
   const { user, doctor } = useDoctorWorkspace();
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [payoutSummary, setPayoutSummary] = useState<DoctorPayoutSummary | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -35,9 +41,11 @@ export default function DoctorDashboardPage() {
       Promise.all([
         getMyScheduleSlots(user),
         getMyDoctorAppointments(user),
-      ]).then(([nextSlots, nextAppointments]) => {
+        getMyDoctorPayouts(user),
+      ]).then(([nextSlots, nextAppointments, nextPayoutSummary]) => {
         setSlots(nextSlots);
         setAppointments(nextAppointments);
+        setPayoutSummary(nextPayoutSummary);
       });
 
     void loadDoctorDashboard();
@@ -65,7 +73,7 @@ export default function DoctorDashboardPage() {
   const nextAppointment = activeAppointments[0] ?? null;
   const openSlots = slots.filter((slot) => slot.status === "available");
   const displayName = `Dr. ${doctor.firstName} ${doctor.lastName}`;
-  const revenue = getDoctorRevenue(appointments);
+  const revenue = payoutSummary?.totals ?? getDoctorRevenue(appointments);
 
   return (
     <div className="min-h-full bg-[#f7f2e8]">
@@ -161,7 +169,7 @@ export default function DoctorDashboardPage() {
                 </div>
               </div>
               <div className="mt-4 grid gap-2 text-sm">
-                <WalletRow label="Gross paid" value={formatPhp(revenue.grossPaidPhp)} />
+                <WalletRow label="Gross paid" value={formatPhp(revenue.grossAmountPhp)} />
                 <WalletRow label="Click Klinik fee" value={formatPhp(revenue.platformCommissionPhp)} />
                 <WalletRow label="Pending payout" value={formatPhp(revenue.pendingPayoutPhp)} />
               </div>
@@ -171,11 +179,6 @@ export default function DoctorDashboardPage() {
               Choose what you need
             </p>
             <div className="mt-4 grid gap-2">
-              <FeatureLink
-                href="/doctor/consultations"
-                icon={<CalendarCheck2 className="size-4" />}
-                label="Consultations"
-              />
               <FeatureLink
                 href="/doctor/records"
                 icon={<BookOpenText className="size-4" />}
@@ -213,7 +216,7 @@ export default function DoctorDashboardPage() {
               </p>
               <h2 className="mt-2 text-xl font-bold text-primary">Patients to review</h2>
             </div>
-            <Link href="/doctor/consultations" className="text-sm font-semibold text-primary">
+            <Link href="/doctor/schedule/calendar" className="text-sm font-semibold text-primary">
               View all
             </Link>
           </div>
@@ -244,8 +247,75 @@ export default function DoctorDashboardPage() {
             ) : null}
           </div>
         </section>
+
+        <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                Payout and commission table
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-primary">
+                Money per consultation
+              </h2>
+            </div>
+            <span className="rounded-full border border-[#12324d]/10 bg-[#fcfaf5] px-3 py-1 text-xs font-semibold text-primary">
+              15% platform fee
+            </span>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-[#12324d]/10 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                <tr>
+                  <th className="py-3 pr-4">Patient</th>
+                  <th className="py-3 pr-4">Gross</th>
+                  <th className="py-3 pr-4">Click Klinik fee</th>
+                  <th className="py-3 pr-4">Doctor payout</th>
+                  <th className="py-3 pr-4">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(payoutSummary?.payouts ?? []).slice(0, 8).map((payout) => (
+                  <PayoutRow key={payout._id} payout={payout} />
+                ))}
+              </tbody>
+            </table>
+            {payoutSummary?.payouts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-6 text-sm text-muted-foreground">
+                No payout records yet. Paid Xendit consultations will appear here.
+              </div>
+            ) : null}
+          </div>
+        </section>
       </section>
     </div>
+  );
+}
+
+function PayoutRow({ payout }: { payout: DoctorPayout }) {
+  return (
+    <tr className="border-b border-[#12324d]/10 last:border-b-0">
+      <td className="py-3 pr-4">
+        <p className="font-semibold text-primary">{payout.patientName}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {payout.paymentReferenceId ?? "No reference"}
+        </p>
+      </td>
+      <td className="py-3 pr-4 font-semibold text-primary">
+        {formatPhp(payout.grossAmountPhp)}
+      </td>
+      <td className="py-3 pr-4 text-amber-700">
+        {formatPhp(payout.platformCommissionPhp)}
+      </td>
+      <td className="py-3 pr-4 font-bold text-emerald-700">
+        {formatPhp(payout.doctorPayoutPhp)}
+      </td>
+      <td className="py-3 pr-4">
+        <span className="rounded-full border border-[#12324d]/10 bg-[#fcfaf5] px-3 py-1 text-xs font-semibold text-primary">
+          {payout.status.replace(/_/g, " ")}
+        </span>
+      </td>
+    </tr>
   );
 }
 
@@ -360,7 +430,7 @@ function getDoctorRevenue(appointments: Appointment[]) {
       const commission = getPlatformCommissionPhp(appointment);
 
       if (appointment.paymentStatus === "paid") {
-        summary.grossPaidPhp += appointment.totalFeePhp ?? 0;
+        summary.grossAmountPhp += appointment.totalFeePhp ?? 0;
         summary.platformCommissionPhp += commission;
         summary.availablePayoutPhp += payout;
       } else if (appointment.status !== "cancelled") {
@@ -371,7 +441,7 @@ function getDoctorRevenue(appointments: Appointment[]) {
     },
     {
       availablePayoutPhp: 0,
-      grossPaidPhp: 0,
+      grossAmountPhp: 0,
       pendingPayoutPhp: 0,
       platformCommissionPhp: 0,
     },

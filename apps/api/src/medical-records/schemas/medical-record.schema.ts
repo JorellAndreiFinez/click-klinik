@@ -21,6 +21,27 @@ export class PrescriptionItem {
 export const PrescriptionItemSchema =
   SchemaFactory.createForClass(PrescriptionItem);
 
+@Schema({ _id: false })
+export class MedicalCertificate {
+  @Prop({ trim: true })
+  code?: string;
+
+  @Prop({ trim: true })
+  title?: string;
+
+  @Prop({ trim: true })
+  body?: string;
+
+  @Prop({ trim: true })
+  remarks?: string;
+
+  @Prop()
+  issuedAt?: Date;
+}
+
+export const MedicalCertificateSchema =
+  SchemaFactory.createForClass(MedicalCertificate);
+
 @Schema({ timestamps: true, collection: 'medical_records' })
 export class MedicalRecord {
   @Prop({ required: true, index: true, unique: true })
@@ -55,6 +76,15 @@ export class MedicalRecord {
 
   @Prop({ type: [PrescriptionItemSchema], default: [] })
   prescriptions!: PrescriptionItem[];
+
+  @Prop({ trim: true })
+  doctorSignatureDataUrl?: string;
+
+  @Prop({ trim: true })
+  doctorSignatureText?: string;
+
+  @Prop({ type: MedicalCertificateSchema })
+  medicalCertificate?: MedicalCertificate;
 }
 
 export const MedicalRecordSchema = SchemaFactory.createForClass(MedicalRecord);

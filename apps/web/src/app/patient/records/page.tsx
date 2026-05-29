@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { FileText, HeartPulse, Pill } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronRight,
+  Download,
+  FileBadge2,
+  FileText,
+  HeartPulse,
+  Pill,
+  ShieldCheck,
+} from "lucide-react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
@@ -22,6 +31,7 @@ export default function PatientRecordsPage() {
   const configured = isFirebaseConfigured();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [recordsView, setRecordsView] = useState<PatientRecordsView | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(
     configured ? "Loading your health records..." : "Authentication is not configured yet.",
@@ -45,6 +55,7 @@ export default function PatientRecordsPage() {
         .then(([nextProfile, nextRecords]) => {
           setProfile(nextProfile);
           setRecordsView(nextRecords);
+          setSelectedRecordId(nextRecords.records[0]?._id ?? "");
           setLoading(false);
         })
         .catch((error: unknown) => {
@@ -76,6 +87,38 @@ export default function PatientRecordsPage() {
       ) ?? 0,
     [recordsView],
   );
+  const certificateCount = useMemo(
+    () =>
+      recordsView?.records.filter((record) => Boolean(record.medicalCertificate))
+        .length ?? 0,
+    [recordsView],
+  );
+  const noteCount = useMemo(
+    () =>
+      recordsView?.records.filter(
+        (record) =>
+          Boolean(record.consultationSummary) ||
+          Boolean(record.publicNote) ||
+          Boolean(record.recommendations),
+      ).length ?? 0,
+    [recordsView],
+  );
+  const sortedRecords = useMemo(
+    () =>
+      [...(recordsView?.records ?? [])].sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      ),
+    [recordsView],
+  );
+  const selectedRecord = useMemo(
+    () =>
+      sortedRecords.find((record) => record._id === selectedRecordId) ??
+      sortedRecords[0] ??
+      null,
+    [selectedRecordId, sortedRecords],
+  );
+  const latestAppointment = recordsView?.appointments[0] ?? null;
 
   if (!profile) {
     return (
@@ -103,154 +146,199 @@ export default function PatientRecordsPage() {
     >
       <div className="min-h-full bg-[#f7f2e8]">
         <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
                 Records
               </p>
               <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-                Doctor notes and prescriptions
+                Your health documents
               </h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                View shared notes, prescriptions, and past consultations.
+              <p className="mt-2 max-w-2xl text-base leading-7 text-muted-foreground">
+                Find doctor notes, prescriptions, certificates, and consultation history in one simple place.
               </p>
             </div>
-            <Badge variant="outline" className="h-9 rounded-full px-3">
-              {recordsView?.records.length ?? 0} records / {prescriptionCount} prescriptions
-            </Badge>
+            <div className="rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm text-primary">
+              <p className="font-bold">Privacy protected</p>
+              <p className="mt-1 text-muted-foreground">Only notes shared for patients are shown here.</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <RecordStat label="Doctor notes" value={noteCount} />
+            <RecordStat label="Prescriptions" value={prescriptionCount} />
+            <RecordStat label="Certificates" value={certificateCount} />
           </div>
         </section>
 
-        <section className="grid xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="border-b border-[#12324d]/10 bg-[#fffdf8] px-6 py-6 sm:px-8 xl:border-r xl:border-b-0">
-            <SectionTitle title="Appointment history" />
+        <section className="grid min-h-[620px] lg:grid-cols-[360px_1fr]">
+          <aside className="border-b border-[#12324d]/10 bg-[#fffdf8] px-6 py-6 sm:px-8 lg:border-r lg:border-b-0">
+            <SectionTitle title="Choose a record" />
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Tap one consultation to view its notes, prescriptions, or certificate.
+            </p>
 
-            <div className="mt-4 space-y-3">
+            {latestAppointment ? (
+              <div className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4">
+                <p className="flex items-center gap-2 text-xs font-bold tracking-[0.14em] text-primary uppercase">
+                  <CalendarDays className="size-4" />
+                  Latest visit
+                </p>
+                <p className="mt-3 font-bold text-primary">
+                  {latestAppointment.consultationLabel || latestAppointment.specializationName}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {formatDate(latestAppointment.scheduledStartAt)} with {latestAppointment.doctorName}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-5 space-y-3">
               {loading ? (
-                <EmptyState copy="Loading your appointment history..." />
-              ) : recordsView?.appointments.length ? (
-                recordsView.appointments.map((appointment) => (
-                  <article
-                    key={appointment._id}
-                    className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-primary">
-                          {appointment.consultationLabel ||
-                            appointment.specializationName}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {appointment.doctorName}
-                        </p>
-                      </div>
-                      <Badge variant="outline">
-                        {formatStatus(appointment.status)}
-                      </Badge>
-                    </div>
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {formatDate(appointment.scheduledStartAt)} /{" "}
-                      {formatTime(appointment.scheduledStartAt)} -{" "}
-                      {formatTime(appointment.scheduledEndAt)}
-                    </p>
-                    {appointment.triage ? (
-                      <div className="mt-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 py-3">
-                        <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
-                          Triage history
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-primary">
-                          {appointment.triage.chiefComplaint}
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                          {appointment.triage.detailedSymptoms}
-                        </p>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Started: {formatDate(appointment.triage.onsetDate)} / Method:{" "}
-                          {formatStatus(appointment.triage.consultMethod)}
-                        </p>
-                      </div>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                <EmptyState copy="No consultations yet." />
-              )}
-            </div>
-          </div>
-
-          <div className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
-            <SectionTitle title="Shared medical records" />
-
-            <div className="mt-4 space-y-4">
-              {loading ? (
-                <EmptyState copy="Loading your doctor notes..." />
-              ) : recordsView?.records.length ? (
-                recordsView.records.map((record) => (
-                  <article
+                <EmptyState copy="Loading your records..." />
+              ) : sortedRecords.length ? (
+                sortedRecords.map((record) => (
+                  <RecordListButton
                     key={record._id}
-                    className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">{record.doctorName}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {record.specializationName} / {formatDate(record.createdAt)}
-                        </p>
-                      </div>
-                      <Badge variant="secondary">Shared</Badge>
-                    </div>
-
-                    <RecordBlock
-                      icon={<FileText className="size-4" />}
-                      label="Doctor note"
-                      value={
-                        record.consultationSummary ||
-                        record.publicNote ||
-                        "No consultation summary was shared yet."
-                      }
-                    />
-
-                    {record.recommendations ? (
-                      <RecordBlock
-                        label="Care advice"
-                        value={record.recommendations}
-                      />
-                    ) : null}
-
-                    <div className="mt-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
-                      <p className="flex items-center gap-2 text-xs font-bold tracking-[0.14em] text-primary uppercase">
-                        <Pill className="size-4" />
-                        Prescriptions
-                      </p>
-                      <div className="mt-3 space-y-2">
-                        {record.prescriptions.length ? (
-                          record.prescriptions.map((item, index) => (
-                            <div
-                              key={`${record._id}-${item.medicine}-${index}`}
-                              className="rounded-lg border border-[#12324d]/10 bg-white px-3 py-3"
-                            >
-                              <p className="font-semibold">{item.medicine}</p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {[item.dosage, item.instruction, item.duration]
-                                  .filter(Boolean)
-                                  .join(" / ") || "No extra instructions added."}
-                              </p>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            No prescriptions were attached to this consultation.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </article>
+                    record={record}
+                    active={selectedRecord?._id === record._id}
+                    onClick={() => setSelectedRecordId(record._id)}
+                  />
                 ))
               ) : (
                 <EmptyState copy="No doctor notes have been shared yet." />
               )}
             </div>
-          </div>
+          </aside>
+
+          <main className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
+            {loading ? (
+              <EmptyState copy="Loading your doctor notes..." />
+            ) : selectedRecord ? (
+              <article className="overflow-hidden rounded-2xl border border-[#12324d]/10 bg-white shadow-sm">
+                <div className="border-b border-[#12324d]/10 bg-[#fffdf8] px-5 py-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div>
+                      <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                        Selected record
+                      </p>
+                      <h2 className="mt-2 text-2xl font-bold text-primary">
+                        {selectedRecord.doctorName}
+                      </h2>
+                      <p className="mt-1 text-base text-muted-foreground">
+                        {selectedRecord.specializationName} / {formatDate(selectedRecord.createdAt)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 rounded-xl bg-white"
+                        onClick={() => downloadPrescriptionPdf(selectedRecord, profile)}
+                        disabled={!selectedRecord.prescriptions.length}
+                      >
+                        <Download className="size-4" />
+                        Prescription PDF
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 rounded-xl bg-white"
+                        onClick={() => downloadMedicalCertificatePdf(selectedRecord, profile)}
+                        disabled={!selectedRecord.medicalCertificate}
+                      >
+                        <Download className="size-4" />
+                        Certificate PDF
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 p-5">
+                  <PatientFriendlyNotice />
+
+                  <RecordSection
+                    icon={<FileText className="size-5" />}
+                    title="Doctor notes"
+                    description="The doctor’s patient-friendly summary and advice from your consultation."
+                  >
+                    {selectedRecord.consultationSummary ? (
+                      <RecordBlock label="Consultation summary" value={selectedRecord.consultationSummary} />
+                    ) : null}
+                    {selectedRecord.publicNote ? (
+                      <RecordBlock label="Doctor note for you" value={selectedRecord.publicNote} tone="public" />
+                    ) : null}
+                    {selectedRecord.recommendations ? (
+                      <RecordBlock label="Care advice" value={selectedRecord.recommendations} />
+                    ) : null}
+                    {!selectedRecord.consultationSummary &&
+                    !selectedRecord.publicNote &&
+                    !selectedRecord.recommendations ? (
+                      <p className="rounded-xl border border-dashed border-[#12324d]/15 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
+                        No shared note yet for this consultation.
+                      </p>
+                    ) : null}
+                  </RecordSection>
+
+                  <RecordSection
+                    icon={<Pill className="size-5" />}
+                    title="Prescriptions"
+                    description="Medicines and instructions shared by your doctor."
+                  >
+                    {selectedRecord.prescriptions.length ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {selectedRecord.prescriptions.map((item, index) => (
+                          <div
+                            key={`${selectedRecord._id}-${item.medicine}-${index}`}
+                            className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4"
+                          >
+                            <p className="text-lg font-bold text-primary">{item.medicine}</p>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                              {[item.dosage, item.instruction, item.duration]
+                                .filter(Boolean)
+                                .join(" / ") || "No extra instructions added."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-[#12324d]/15 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
+                        No prescriptions were attached to this consultation.
+                      </p>
+                    )}
+                  </RecordSection>
+
+                  <RecordSection
+                    icon={<FileBadge2 className="size-5" />}
+                    title="Medical certificate"
+                    description="Formal certificate issued only when your doctor publishes one."
+                  >
+                    {selectedRecord.medicalCertificate ? (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                        <p className="font-bold text-primary">
+                          {selectedRecord.medicalCertificate.title || "Medical Certificate"}
+                        </p>
+                        <p className="mt-2 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                          {selectedRecord.medicalCertificate.body ||
+                            "Issued by your doctor after consultation review."}
+                        </p>
+                        {selectedRecord.medicalCertificate.remarks ? (
+                          <p className="mt-3 rounded-lg bg-white/80 px-3 py-2 text-sm leading-6 text-emerald-900">
+                            Verification note: {selectedRecord.medicalCertificate.remarks}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-[#12324d]/15 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
+                        No medical certificate was issued for this consultation.
+                      </p>
+                    )}
+                  </RecordSection>
+                </div>
+              </article>
+            ) : (
+              <EmptyState copy="No records available yet. Completed consultations will appear here once your doctor shares notes." />
+            )}
+          </main>
         </section>
       </div>
     </PatientWorkspaceShell>
@@ -265,22 +353,136 @@ function SectionTitle({ title }: { title: string }) {
   );
 }
 
+function RecordStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3">
+      <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-bold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function RecordListButton({
+  record,
+  active,
+  onClick,
+}: {
+  record: PatientRecordsView["records"][number];
+  active: boolean;
+  onClick: () => void;
+}) {
+  const documentCount =
+    Number(Boolean(record.consultationSummary || record.publicNote || record.recommendations)) +
+    Number(record.prescriptions.length > 0) +
+    Number(Boolean(record.medicalCertificate));
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-[#12324d]/10 bg-white text-primary hover:border-primary/35"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-base font-bold">{record.doctorName}</p>
+          <p className={`mt-1 text-sm ${active ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+            {formatDate(record.createdAt)}
+          </p>
+        </div>
+        <ChevronRight className="mt-1 size-4 shrink-0" />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {record.prescriptions.length ? (
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? "bg-white/15" : "bg-secondary/50"}`}>
+            RX
+          </span>
+        ) : null}
+        {record.medicalCertificate ? (
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? "bg-white/15" : "bg-emerald-100 text-emerald-900"}`}>
+            Certificate
+          </span>
+        ) : null}
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? "bg-white/15" : "bg-[#f7f2e8]"}`}>
+          {documentCount || 1} item{documentCount === 1 ? "" : "s"}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function PatientFriendlyNotice() {
+  return (
+    <div className="rounded-2xl border border-[#12324d]/10 bg-[#e8f5ee] px-4 py-4">
+      <div className="flex gap-3">
+        <ShieldCheck className="mt-1 size-5 shrink-0 text-[#12734b]" />
+        <div>
+          <p className="font-bold text-primary">Easy reminder</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Follow your doctor’s instructions. If symptoms become severe or urgent,
+            contact emergency services or go to the nearest hospital.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecordSection({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+          {icon}
+        </span>
+        <div>
+          <h3 className="text-xl font-bold text-primary">{title}</h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function RecordBlock({
   icon,
   label,
   value,
+  tone = "default",
 }: {
   icon?: ReactNode;
   label: string;
   value: string;
+  tone?: "default" | "public";
 }) {
+  const toneClass =
+    tone === "public"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+      : "border-[#12324d]/10 bg-[#fcfaf5] text-muted-foreground";
+
   return (
-    <div className="mt-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+    <div className={`mt-3 rounded-xl border px-4 py-4 ${toneClass}`}>
       <p className="flex items-center gap-2 text-xs font-bold tracking-[0.14em] text-primary uppercase">
         {icon}
         {label}
       </p>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{value}</p>
+      <p className="mt-2 whitespace-pre-line text-sm leading-6">{value}</p>
     </div>
   );
 }
@@ -310,4 +512,453 @@ function formatTime(value: string) {
 
 function formatStatus(status: string) {
   return status.replace(/_/g, " ");
+}
+
+function downloadPrescriptionPdf(
+  record: PatientRecordsView["records"][number],
+  profile: PatientProfile,
+) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    return;
+  }
+
+  const patientName = `${profile.firstName} ${profile.lastName}`;
+  const prescriptions = record.prescriptions
+    .map(
+      (item, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(item.medicine)}</td>
+          <td>${escapeHtml(item.dosage || "-")}</td>
+          <td>${escapeHtml(item.duration || "-")}</td>
+          <td>${escapeHtml(item.instruction || "-")}</td>
+        </tr>
+      `,
+    )
+    .join("");
+  const signatureMarkup = record.doctorSignatureDataUrl
+    ? `<img class="signature-image" src="${record.doctorSignatureDataUrl}" alt="Doctor digital signature" />`
+    : `<div class="sign-name">${escapeHtml(record.doctorSignatureText || record.doctorName)}</div>`;
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Click Klinik Prescription</title>
+        <style>
+          @page { size: A4; margin: 18mm; }
+          body {
+            color: #082b45;
+            font-family: Georgia, "Times New Roman", serif;
+            margin: 0;
+          }
+          .paper {
+            min-height: 94vh;
+            position: relative;
+          }
+          .watermark {
+            color: rgba(8, 43, 69, 0.07);
+            font-size: 76px;
+            font-weight: 800;
+            left: 50%;
+            letter-spacing: 8px;
+            position: fixed;
+            text-transform: uppercase;
+            top: 48%;
+            transform: translate(-50%, -50%) rotate(-28deg);
+            white-space: nowrap;
+            z-index: 0;
+          }
+          .content { position: relative; z-index: 1; }
+          header {
+            border-bottom: 2px solid #082b45;
+            padding-bottom: 14px;
+          }
+          h1 { font-size: 28px; margin: 0; }
+          .muted { color: #49657a; font-size: 13px; }
+          .grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 20px;
+          }
+          .box {
+            border: 1px solid #d8d0c2;
+            border-radius: 10px;
+            padding: 12px;
+          }
+          .label {
+            color: #49657a;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
+          .value { font-size: 15px; font-weight: 700; margin-top: 5px; }
+          table {
+            border-collapse: collapse;
+            margin-top: 24px;
+            width: 100%;
+          }
+          th, td {
+            border: 1px solid #d8d0c2;
+            font-size: 13px;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+          }
+          th { background: #f7f2e8; }
+          .signature {
+            margin-left: auto;
+            margin-top: 70px;
+            text-align: center;
+            width: 260px;
+          }
+          .sign-name {
+            border-bottom: 1px solid #082b45;
+            font-family: "Brush Script MT", cursive;
+            font-size: 28px;
+            padding-bottom: 4px;
+          }
+          .signature-image {
+            border-bottom: 1px solid #082b45;
+            height: 72px;
+            object-fit: contain;
+            width: 100%;
+          }
+          .seal {
+            border: 2px solid rgba(8, 43, 69, 0.22);
+            border-radius: 999px;
+            color: rgba(8, 43, 69, 0.32);
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-top: 10px;
+            padding: 12px 18px;
+            text-transform: uppercase;
+            transform: rotate(-8deg);
+          }
+          footer {
+            border-top: 1px solid #d8d0c2;
+            bottom: 0;
+            color: #49657a;
+            font-size: 11px;
+            padding-top: 10px;
+            position: absolute;
+            width: 100%;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="paper">
+          <div class="watermark">click-klinik</div>
+          <div class="content">
+            <header>
+              <h1>Click Klinik Prescription</h1>
+              <p class="muted">Secure telehealth prescription copy with wet-style watermark.</p>
+            </header>
+            <section class="grid">
+              <div class="box">
+                <div class="label">Patient</div>
+                <div class="value">${escapeHtml(patientName)}</div>
+              </div>
+              <div class="box">
+                <div class="label">Issued</div>
+                <div class="value">${escapeHtml(formatDate(record.createdAt))}</div>
+              </div>
+              <div class="box">
+                <div class="label">Doctor</div>
+                <div class="value">${escapeHtml(record.doctorName)}</div>
+              </div>
+              <div class="box">
+                <div class="label">Specialization</div>
+                <div class="value">${escapeHtml(record.specializationName)}</div>
+              </div>
+            </section>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Medicine</th>
+                  <th>Dosage</th>
+                  <th>Duration</th>
+                  <th>Instructions</th>
+                </tr>
+              </thead>
+              <tbody>${prescriptions}</tbody>
+            </table>
+            <section class="signature">
+              ${signatureMarkup}
+              <strong>${escapeHtml(record.doctorName)}</strong>
+              <div class="muted">Doctor signature</div>
+              <div class="seal">Click Klinik Verified</div>
+            </section>
+          </div>
+          <footer>
+            This tool provides guidance only and does not replace professional medical advice.
+            Watermark: click-klinik. Verify through your Click Klinik patient record.
+          </footer>
+        </div>
+        <script>
+          window.onload = () => {
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function downloadMedicalCertificatePdf(
+  record: PatientRecordsView["records"][number],
+  profile: PatientProfile,
+) {
+  if (!record.medicalCertificate) {
+    return;
+  }
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    return;
+  }
+
+  const patientName = `${profile.firstName} ${profile.lastName}`;
+  const issuedAt = record.medicalCertificate.issuedAt || record.createdAt;
+  const certificateBody = escapeHtml(
+    record.medicalCertificate.body ||
+      "This medical certificate was issued after a Click Klinik consultation.",
+  ).replace(/\n/g, "<br />");
+  const signatureMarkup = record.doctorSignatureDataUrl
+    ? `<img class="signature-image" src="${record.doctorSignatureDataUrl}" alt="Doctor digital signature" />`
+    : `<div class="sign-name">${escapeHtml(record.doctorSignatureText || record.doctorName)}</div>`;
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Click Klinik Medical Certificate</title>
+        <style>
+          @page { size: A4; margin: 22mm 20mm; }
+          body {
+            color: #082b45;
+            font-family: Georgia, "Times New Roman", serif;
+            margin: 0;
+            background: #ffffff;
+          }
+          .paper {
+            min-height: 250mm;
+            position: relative;
+            padding: 0;
+          }
+          .watermark {
+            color: rgba(8, 43, 69, 0.045);
+            font-size: 72px;
+            font-weight: 900;
+            left: 50%;
+            letter-spacing: 8px;
+            position: fixed;
+            text-transform: uppercase;
+            top: 48%;
+            transform: translate(-50%, -50%) rotate(-28deg);
+            white-space: nowrap;
+            z-index: 0;
+          }
+          .content { position: relative; z-index: 1; }
+          header {
+            align-items: center;
+            border-bottom: 1.5px solid #082b45;
+            display: flex;
+            gap: 14px;
+            padding-bottom: 18px;
+          }
+          .logo {
+            align-items: center;
+            background: #ffd92e;
+            border: 1px solid #082b45;
+            border-radius: 14px;
+            display: flex;
+            font-family: Arial, sans-serif;
+            font-weight: 900;
+            height: 50px;
+            justify-content: center;
+            width: 50px;
+          }
+          h1 { font-size: 24px; letter-spacing: 0.5px; margin: 0; }
+          .muted { color: #49657a; font-size: 12px; line-height: 1.6; }
+          .title {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 2.4px;
+            margin-top: 36px;
+            text-align: center;
+            text-transform: uppercase;
+          }
+          .subtitle {
+            color: #49657a;
+            font-size: 12px;
+            letter-spacing: 1.2px;
+            margin-top: 8px;
+            text-align: center;
+            text-transform: uppercase;
+          }
+          .grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 30px;
+          }
+          .box {
+            border: 1px solid #d8d0c2;
+            border-radius: 4px;
+            padding: 13px 14px;
+          }
+          .label {
+            color: #49657a;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
+          .value { font-size: 15px; font-weight: 700; margin-top: 5px; }
+          .body {
+            border: 1px solid #d8d0c2;
+            border-radius: 4px;
+            font-size: 16px;
+            line-height: 1.95;
+            margin-top: 30px;
+            min-height: 250px;
+            padding: 28px 30px;
+            text-align: justify;
+          }
+          .remarks {
+            background: #f7f2e8;
+            border: 1px solid #d8d0c2;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-top: 18px;
+            padding: 14px;
+          }
+          .signature {
+            margin-left: auto;
+            margin-top: 68px;
+            text-align: center;
+            width: 280px;
+          }
+          .sign-name {
+            border-bottom: 1px solid #082b45;
+            font-family: "Brush Script MT", cursive;
+            font-size: 28px;
+            padding-bottom: 4px;
+          }
+          .signature-image {
+            border-bottom: 1px solid #082b45;
+            height: 72px;
+            object-fit: contain;
+            width: 100%;
+          }
+          .seal {
+            border: 2px solid rgba(8, 43, 69, 0.22);
+            border-radius: 999px;
+            color: rgba(8, 43, 69, 0.32);
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin-top: 12px;
+            padding: 12px 18px;
+            text-transform: uppercase;
+            transform: rotate(-8deg);
+          }
+          footer {
+            border-top: 1px solid #d8d0c2;
+            bottom: 0;
+            color: #49657a;
+            font-size: 11px;
+            line-height: 1.5;
+            padding-top: 12px;
+            position: absolute;
+            width: 100%;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="paper">
+          <div class="watermark">click-klinik</div>
+          <div class="content">
+            <header>
+              <div class="logo">CK</div>
+              <div>
+                <h1>Click Klinik</h1>
+                <p class="muted">Secure telehealth document with digital signature verification.</p>
+              </div>
+            </header>
+
+            <div class="title">${escapeHtml(
+              record.medicalCertificate.title || "Medical Certificate",
+            )}</div>
+            <div class="subtitle">Official Telehealth Documentation</div>
+
+            <section class="grid">
+              <div class="box">
+                <div class="label">Patient</div>
+                <div class="value">${escapeHtml(patientName)}</div>
+              </div>
+              <div class="box">
+                <div class="label">Issued</div>
+                <div class="value">${escapeHtml(formatDate(issuedAt))}</div>
+              </div>
+              <div class="box">
+                <div class="label">Doctor</div>
+                <div class="value">${escapeHtml(record.doctorName)}</div>
+              </div>
+              <div class="box">
+                <div class="label">Specialization</div>
+                <div class="value">${escapeHtml(record.specializationName)}</div>
+              </div>
+            </section>
+
+            <section class="body">${certificateBody}</section>
+            ${
+              record.medicalCertificate.remarks
+                ? `<section class="remarks"><strong>Remarks:</strong> ${escapeHtml(
+                    record.medicalCertificate.remarks,
+                  )}</section>`
+                : ""
+            }
+
+            <section class="signature">
+              ${signatureMarkup}
+              <strong>${escapeHtml(record.doctorName)}</strong>
+              <div class="muted">Licensed doctor signature</div>
+              <div class="seal">Click Klinik Verified</div>
+            </section>
+          </div>
+          <footer>
+            Verification ID: ${escapeHtml(record._id)} / Appointment: ${escapeHtml(
+              record.appointmentId,
+            )}. This certificate is based on the telehealth consultation record and should be verified in Click Klinik.
+          </footer>
+        </div>
+        <script>
+          window.onload = () => {
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

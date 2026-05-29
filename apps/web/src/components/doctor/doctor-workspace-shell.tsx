@@ -7,7 +7,6 @@ import {
   BookOpenText,
   CalendarDays,
   CalendarRange,
-  CalendarCheck2,
   ClipboardPenLine,
   HeartPulse,
   LayoutDashboard,
@@ -48,11 +47,6 @@ const workspaceLinks: WorkspaceLink[] = [
     href: "/doctor/schedule/calendar",
     label: "Calendar",
     icon: <CalendarRange className="size-4" />,
-  },
-  {
-    href: "/doctor/consultations",
-    label: "Consultations",
-    icon: <CalendarCheck2 className="size-4" />,
   },
   {
     href: "/doctor/notes",

@@ -77,7 +77,56 @@ export type Appointment = {
   refundStatus?: "none" | "requested" | "approved" | "rejected" | "refunded";
   refundRequestedAt?: string;
   refundReason?: string;
+  patientHasRatedDoctor?: boolean;
+  doctorRatingStars?: number;
+  doctorRatingComment?: string;
+  doctorRatedAt?: string;
   createdAt: string;
+};
+
+export type DoctorPayoutStatus =
+  | "pending_payment"
+  | "available"
+  | "refund_requested"
+  | "refunded"
+  | "cancelled"
+  | "paid_out";
+
+export type DoctorPayout = {
+  _id: string;
+  appointmentId: string;
+  patientId: string;
+  patientEmail: string;
+  patientName: string;
+  doctorApplicationId: string;
+  doctorEmail: string;
+  doctorName: string;
+  grossAmountPhp: number;
+  platformCommissionRate: number;
+  platformCommissionPhp: number;
+  doctorPayoutPhp: number;
+  currency: string;
+  status: DoctorPayoutStatus;
+  paymentProvider: "xendit";
+  paymentReferenceId?: string;
+  paymentProviderPaymentId?: string;
+  paidAt?: string;
+  refundRequestedAt?: string;
+  refundReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DoctorPayoutSummary = {
+  totals: {
+    grossAmountPhp: number;
+    platformCommissionPhp: number;
+    doctorPayoutPhp: number;
+    availablePayoutPhp: number;
+    pendingPayoutPhp: number;
+    refundedPhp: number;
+  };
+  payouts: DoctorPayout[];
 };
 
 export async function createAppointment(
@@ -108,6 +157,10 @@ export async function getMyDoctorAppointments(user: User): Promise<Appointment[]
   return appointmentRequest<Appointment[]>(user, "/appointments/me/doctor");
 }
 
+export async function getMyDoctorPayouts(user: User): Promise<DoctorPayoutSummary> {
+  return appointmentRequest<DoctorPayoutSummary>(user, "/appointments/me/doctor/payouts");
+}
+
 export async function updateAppointmentStatus(
   user: User,
   id: string,
@@ -116,6 +169,17 @@ export async function updateAppointmentStatus(
   return appointmentRequest<Appointment>(user, `/appointments/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function rateAppointmentDoctor(
+  user: User,
+  id: string,
+  input: { stars: number; comment?: string },
+): Promise<Appointment> {
+  return appointmentRequest<Appointment>(user, `/appointments/${id}/rating`, {
+    method: "POST",
+    body: JSON.stringify(input),
   });
 }
 

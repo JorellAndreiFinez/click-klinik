@@ -12,6 +12,7 @@ import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { RateDoctorDto } from './dto/rate-doctor.dto';
 import { RequestRefundDto } from './dto/request-refund.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { Appointment } from './schemas/appointment.schema';
@@ -43,6 +44,11 @@ export class AppointmentsController {
     return this.appointmentsService.listDoctorAppointments(request.user);
   }
 
+  @Get('me/doctor/payouts')
+  listMyDoctorPayouts(@Req() request: AuthenticatedRequest) {
+    return this.appointmentsService.listDoctorPayouts(request.user);
+  }
+
   @Patch(':id/status')
   updateStatus(
     @Req() request: AuthenticatedRequest,
@@ -58,6 +64,15 @@ export class AppointmentsController {
     @Param('id') id: string,
   ): Promise<{ meetLink?: string; appointment: Appointment }> {
     return this.appointmentsService.joinAppointment(request.user, id);
+  }
+
+  @Post(':id/rating')
+  rateDoctor(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: RateDoctorDto,
+  ): Promise<Appointment> {
+    return this.appointmentsService.rateDoctor(request.user, id, dto);
   }
 
   @Post(':id/refund-request')
