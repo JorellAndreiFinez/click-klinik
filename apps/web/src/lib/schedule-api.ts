@@ -27,7 +27,7 @@ export type CreateScheduleSlotInput = {
 export type WeeklyTemplateEntry = {
   _id?: string;
   dayOfWeek: number;
-  status: "off" | "available" | "unavailable";
+  status: "off" | "available";
   startTime?: string;
   endTime?: string;
 };

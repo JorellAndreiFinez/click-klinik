@@ -106,6 +106,18 @@ export class SchedulesService {
       );
     }
 
+    await this.removeExactDuplicateSlots(
+      doctorApplicationId,
+      window.startAt,
+      window.endAt,
+    );
+    await this.normalizeBookedOverlaps(
+      doctorApplicationId,
+      doctor.professionalEmail,
+      window.startAt,
+      window.endAt,
+    );
+
     return this.slotModel
       .find({
         doctorApplicationId,
@@ -148,6 +160,18 @@ export class SchedulesService {
         window.endAt,
       );
     }
+
+    await this.removeExactDuplicateSlots(
+      doctorApplicationId,
+      window.startAt,
+      window.endAt,
+    );
+    await this.normalizeBookedOverlaps(
+      doctorApplicationId,
+      doctor.professionalEmail,
+      window.startAt,
+      window.endAt,
+    );
 
     return this.slotModel
       .find({
@@ -378,7 +402,7 @@ export class SchedulesService {
     const protectedSlots = await this.slotModel
       .find({
         doctorApplicationId,
-        source: { $ne: 'template' },
+        $or: [{ source: { $ne: 'template' } }, { status: 'booked' }],
         startAt: { $lt: windowEnd },
         endAt: { $gt: windowStart },
       })
@@ -440,6 +464,138 @@ export class SchedulesService {
       await this.slotModel.insertMany(creatableSlots);
     }
   }
+
+  private async removeExactDuplicateSlots(
+    doctorApplicationId: string,
+    windowStart: Date,
+    windowEnd: Date,
+  ): Promise<void> {
+    const slots = await this.slotModel
+      .find({
+        doctorApplicationId,
+        startAt: { $gte: windowStart, $lt: windowEnd },
+      })
+      .sort({ createdAt: 1, _id: 1 })
+      .exec();
+
+    const seen = new Set<string>();
+    const duplicateIds: string[] = [];
+
+    for (const slot of slots) {
+      const key = [
+        slot.startAt.toISOString(),
+        slot.endAt.toISOString(),
+        slot.status,
+      ].join('|');
+
+      if (seen.has(key)) {
+        duplicateIds.push(String(slot._id));
+        continue;
+      }
+
+      seen.add(key);
+    }
+
+    if (duplicateIds.length > 0) {
+      await this.slotModel.deleteMany({ _id: { $in: duplicateIds } }).exec();
+    }
+  }
+
+  private async normalizeBookedOverlaps(
+    doctorApplicationId: string,
+    doctorEmail: string,
+    windowStart: Date,
+    windowEnd: Date,
+  ): Promise<void> {
+    const slots = await this.slotModel
+      .find({
+        doctorApplicationId,
+        startAt: { $lt: windowEnd },
+        endAt: { $gt: windowStart },
+      })
+      .sort({ startAt: 1, endAt: 1 })
+      .exec();
+
+    const bookedSlots = slots.filter((slot) => slot.status === 'booked');
+    if (bookedSlots.length === 0) {
+      return;
+    }
+
+    for (const slot of slots) {
+      if (slot.status === 'booked') {
+        continue;
+      }
+
+      const overlaps = bookedSlots.filter(
+        (bookedSlot) =>
+          bookedSlot.startAt < slot.endAt && bookedSlot.endAt > slot.startAt,
+      );
+
+      if (overlaps.length === 0) {
+        continue;
+      }
+
+      let segments = [{ startAt: slot.startAt, endAt: slot.endAt }];
+
+      for (const bookedSlot of overlaps) {
+        segments = segments.flatMap((segment) =>
+          subtractSegment(segment, {
+            startAt: bookedSlot.startAt,
+            endAt: bookedSlot.endAt,
+          }),
+        );
+      }
+
+      await this.slotModel.findByIdAndDelete(slot._id).exec();
+
+      const remainderSegments = segments.filter(
+        (segment) => segment.endAt > segment.startAt,
+      );
+
+      if (remainderSegments.length > 0) {
+        await this.slotModel.insertMany(
+          remainderSegments.map((segment) => ({
+            doctorApplicationId,
+            doctorEmail,
+            startAt: segment.startAt,
+            endAt: segment.endAt,
+            status: slot.status,
+            source: slot.source,
+            note: slot.note,
+          })),
+        );
+      }
+    }
+  }
+}
+
+const DEFAULT_RECURRING_WINDOW_DAYS = 60;
+
+function subtractSegment(
+  segment: { startAt: Date; endAt: Date },
+  blocker: { startAt: Date; endAt: Date },
+): Array<{ startAt: Date; endAt: Date }> {
+  if (blocker.endAt <= segment.startAt || blocker.startAt >= segment.endAt) {
+    return [segment];
+  }
+
+  const nextSegments: Array<{ startAt: Date; endAt: Date }> = [];
+
+  if (blocker.startAt > segment.startAt) {
+    nextSegments.push({
+      startAt: segment.startAt,
+      endAt: blocker.startAt,
+    });
+  }
+
+  if (blocker.endAt < segment.endAt) {
+    nextSegments.push({
+      startAt: blocker.endAt,
+      endAt: segment.endAt,
+    });
+  }
+
+  return nextSegments;
 }
 
 function validatePeriod(
@@ -518,13 +674,25 @@ function completeWeeklyTemplate(
   const byDay = new Map(current.map((entry) => [entry.dayOfWeek, entry]));
   return Array.from({ length: 7 }, (_, index) => {
     const dayOfWeek = index as 0 | 1 | 2 | 3 | 4 | 5 | 6;
-    return (
-      byDay.get(dayOfWeek) ?? {
+    const existing = byDay.get(dayOfWeek);
+    if (!existing) {
+      return {
         doctorApplicationId,
         dayOfWeek,
         status: 'off',
-      }
-    );
+      };
+    }
+
+    if (existing.status === 'unavailable') {
+      return {
+        ...existing,
+        status: 'off',
+        startTime: undefined,
+        endTime: undefined,
+      };
+    }
+
+    return existing;
   });
 }
 
@@ -573,7 +741,7 @@ function resolveSlotWindow(
   if (!from && !to) {
     const startAt = startOfDay(new Date());
     const endAt = new Date(startAt);
-    endAt.setDate(endAt.getDate() + 7);
+    endAt.setDate(endAt.getDate() + DEFAULT_RECURRING_WINDOW_DAYS);
     return { startAt, endAt };
   }
 

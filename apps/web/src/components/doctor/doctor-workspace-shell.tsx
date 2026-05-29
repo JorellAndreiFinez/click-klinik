@@ -26,16 +26,12 @@ type WorkspaceLink = {
   href: string;
   label: string;
   icon: ReactNode;
-  children?: Array<{
-    href: string;
-    label: string;
-  }>;
 };
 
 const workspaceLinks: WorkspaceLink[] = [
   {
     href: "/doctor/dashboard",
-    label: "Overview",
+    label: "Home",
     icon: <LayoutDashboard className="size-4" />,
   },
   {
@@ -45,18 +41,13 @@ const workspaceLinks: WorkspaceLink[] = [
   },
   {
     href: "/doctor/schedule",
-    label: "Schedule",
+    label: "Availability",
     icon: <CalendarDays className="size-4" />,
-    children: [
-      {
-        href: "/doctor/schedule",
-        label: "Availability",
-      },
-      {
-        href: "/doctor/schedule/calendar",
-        label: "Calendar",
-      },
-    ],
+  },
+  {
+    href: "/doctor/schedule/calendar",
+    label: "Calendar",
+    icon: <CalendarRange className="size-4" />,
   },
   {
     href: "/doctor/consultations",
@@ -70,7 +61,7 @@ const workspaceLinks: WorkspaceLink[] = [
   },
   {
     href: "/doctor/session",
-    label: "Consult room",
+    label: "Session",
     icon: <MonitorSmartphone className="size-4" />,
   },
 ] as const;
@@ -101,24 +92,22 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
   const displayName = `Dr. ${doctor.firstName} ${doctor.lastName}${doctor.suffix ? `, ${doctor.suffix}` : ""}`;
 
   return (
-    <main className="min-h-screen bg-[#f5efe4]">
-      <div className="grid min-h-screen lg:grid-cols-[248px_1fr]">
-        <aside className="border-r border-[#12324d]/12 bg-[linear-gradient(180deg,rgba(10,46,73,1)_0%,rgba(8,37,60,1)_100%)] px-4 py-4 text-primary-foreground lg:h-screen lg:px-4 lg:py-5">
-          <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-2xl bg-secondary text-primary">
+    <main className="min-h-screen bg-[#f7f2e8]">
+      <div className="grid min-h-screen lg:grid-cols-[220px_1fr]">
+        <aside className="border-r border-[#12324d]/12 bg-[#0a2e49] px-4 py-4 text-primary-foreground lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:self-start">
+          <div className="flex items-center gap-3 border-b border-primary-foreground/14 pb-4">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-primary">
               <HeartPulse className="size-5" />
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold tracking-[0.08em]">
                 Click Klinik
               </p>
-              <p className="text-[11px] text-primary-foreground/58">
-                Doctor portal
-              </p>
+              <p className="text-xs text-primary-foreground/60">Doctor care</p>
             </div>
           </div>
 
-          <div className="mt-5 border border-primary-foreground/10 bg-primary-foreground/[0.05] px-4 py-3.5">
+          <div className="mt-4 rounded-xl border border-primary-foreground/14 px-3 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{displayName}</p>
@@ -126,84 +115,53 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
                   {doctor.specializationName}
                 </p>
               </div>
-              <Badge className="shrink-0 rounded-full border border-primary-foreground/14 bg-primary-foreground/[0.06] px-2.5 text-[10px] text-secondary shadow-none">
+              <Badge className="shrink-0 rounded-full border border-primary-foreground/14 bg-primary-foreground/[0.06] px-2 text-[10px] text-secondary shadow-none">
                 <ShieldCheck className="size-3" />
-                Active
               </Badge>
             </div>
           </div>
 
-          <nav className="mt-5 grid gap-1.5">
+          <nav className="mt-5 grid gap-2">
             {workspaceLinks.map((link) => {
               const active =
                 pathname === link.href ||
-                link.children?.some((child) => pathname === child.href);
+                (link.href === "/doctor/schedule" &&
+                  pathname === "/doctor/schedule") ||
+                (link.href === "/doctor/schedule/calendar" &&
+                  pathname.startsWith("/doctor/schedule/calendar"));
 
               return (
-                <div key={link.href}>
-                  <Link
-                    href={link.href}
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "flex h-12 items-center gap-3 rounded-xl border px-3 text-sm font-semibold transition-colors",
+                    active
+                      ? "border-secondary bg-secondary text-secondary-foreground"
+                      : "border-primary-foreground/12 bg-primary-foreground/[0.03] text-primary-foreground/75 hover:bg-primary-foreground/[0.08] hover:text-primary-foreground",
+                  )}
+                >
+                  <span
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 text-sm transition-colors",
+                      "flex size-8 items-center justify-center rounded-lg",
                       active
-                        ? "bg-secondary text-secondary-foreground"
-                        : "text-primary-foreground/70 hover:bg-primary-foreground/[0.06] hover:text-primary-foreground",
+                        ? "bg-secondary-foreground/10"
+                        : "bg-primary-foreground/[0.08] text-secondary",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex size-8 items-center justify-center rounded-xl",
-                        active
-                          ? "bg-secondary-foreground/10"
-                          : "bg-primary-foreground/[0.08] text-secondary",
-                      )}
-                    >
-                      {link.icon}
-                    </span>
-                    <span className="font-medium">{link.label}</span>
-                  </Link>
-
-                  {link.children ? (
-                    <div className="mt-1 ml-11 grid gap-1">
-                      {link.children.map((child) => {
-                        const childActive = pathname === child.href;
-
-                        return (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            className={cn(
-                              "flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors",
-                              childActive
-                                ? "bg-primary-foreground/[0.1] text-secondary"
-                                : "text-primary-foreground/52 hover:bg-primary-foreground/[0.05] hover:text-primary-foreground",
-                            )}
-                          >
-                            <CalendarRange className="size-3.5" />
-                            {child.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
+                    {link.icon}
+                  </span>
+                  {link.label}
+                </Link>
               );
             })}
           </nav>
 
-          <div className="mt-auto pt-5">
-            <div className="border border-primary-foreground/8 bg-primary-foreground/[0.04] px-3.5 py-3">
-              <p className="text-[11px] font-bold tracking-[0.18em] text-secondary uppercase">
-                Quick focus
-              </p>
-              <p className="mt-2 text-xs leading-6 text-primary-foreground/62">
-                Review chart, confirm schedule, document immediately after consult.
-              </p>
-            </div>
+          <div className="mt-auto pt-4">
             <Button
               variant="outline"
               onClick={() => void signOutDoctor()}
-              className="mt-3 h-11 w-full border-primary-foreground/12 bg-primary-foreground/[0.04] text-primary-foreground hover:bg-primary-foreground/[0.08] hover:text-primary-foreground"
+              className="h-11 w-full rounded-xl border-primary-foreground/16 bg-primary-foreground/[0.05] text-primary-foreground hover:bg-primary-foreground/[0.1] hover:text-primary-foreground"
             >
               <LogOut className="size-4" />
               Log out

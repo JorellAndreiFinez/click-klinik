@@ -1,64 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Clock3,
   FileText,
   Pill,
   Search,
+  ShieldCheck,
   UserRound,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
 import {
-  mockDoctorPatients,
-  type DoctorPatientRecord,
-} from "@/features/doctor/mock-doctor-patients";
+  getMyDoctorPatientDetail,
+  getMyDoctorPatients,
+  type DoctorPatientDetail,
+  type DoctorPatientListItem,
+} from "@/lib/medical-records-api";
 
 export default function DoctorRecordsPage() {
+  const { user } = useDoctorWorkspace();
   const [query, setQuery] = useState("");
-  const [selectedPatientId, setSelectedPatientId] = useState(
-    mockDoctorPatients[0]?.id ?? "",
-  );
+  const [patients, setPatients] = useState<DoctorPatientListItem[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [detail, setDetail] = useState<DoctorPatientDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    void getMyDoctorPatients(user)
+      .then((result) => {
+        setPatients(result);
+        setSelectedPatientId(result[0]?.patientId ?? "");
+        setLoading(false);
+      })
+      .catch((nextError: unknown) => {
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to load doctor patient records.",
+        );
+        setLoading(false);
+      });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !selectedPatientId) {
+      return;
+    }
+
+    void getMyDoctorPatientDetail(user, selectedPatientId)
+      .then((result) => {
+        setDetail(result);
+      })
+      .catch((nextError: unknown) => {
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to open patient record.",
+        );
+      });
+  }, [selectedPatientId, user]);
 
   const value = query.trim().toLowerCase();
   const filteredPatients = !value
-    ? mockDoctorPatients
-    : mockDoctorPatients.filter((patient) =>
-        `${patient.name} ${patient.primaryConcern} ${patient.medicalHistory}`
+    ? patients
+    : patients.filter((patient) =>
+        `${patient.patientName} ${patient.latestConcern} ${patient.patientEmail}`
           .toLowerCase()
           .includes(value),
       );
-
-  const selectedPatient =
-    filteredPatients.find((patient) => patient.id === selectedPatientId) ??
-    filteredPatients[0] ??
-    null;
+  const detailLoading =
+    !loading &&
+    Boolean(selectedPatientId) &&
+    detail?.patient._id !== selectedPatientId;
 
   return (
-    <div className="w-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)]">
-      <section className="border-b border-[#12324d]/10 bg-[linear-gradient(135deg,#0d3553_0%,#123f63_58%,#15496f_100%)] text-primary-foreground">
+    <div className="w-full bg-[#f7f2e8]">
+      <section className="border-b border-[#12324d]/10 bg-white">
         <div className="grid xl:grid-cols-[1.12fr_0.88fr]">
           <div className="px-6 py-7 sm:px-8">
-            <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
+            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
               Medical records
             </p>
-            <h1 className="mt-3 text-3xl font-bold">
-              Review records across your patient list.
+            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+              Review patient records across consultations.
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-primary-foreground/68">
-              Browse patient charts, appointment history, previous notes, and
-              prescriptions before the next teleconsultation.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Open appointment history, public consultation notes from other doctors in the app, and prescriptions already issued to the patient.
             </p>
           </div>
-          <div className="border-t border-primary-foreground/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l xl:border-primary-foreground/10">
-            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+          <div className="border-t border-[#12324d]/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l">
+            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
               Assigned patients
             </p>
-            <p className="mt-3 text-3xl font-bold">{mockDoctorPatients.length}</p>
-            <p className="mt-2 text-sm text-primary-foreground/66">
-              patient charts currently visible in this doctor workspace
+            <p className="mt-3 text-3xl font-bold text-primary">{patients.length}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              active patient profiles linked to your consultations
             </p>
           </div>
         </div>
@@ -71,7 +114,7 @@ export default function DoctorRecordsPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search patient, concern, or history"
+              placeholder="Search patient, concern, or email"
               className="w-full bg-transparent text-sm outline-none"
               aria-label="Search patient records"
             />
@@ -79,12 +122,15 @@ export default function DoctorRecordsPage() {
 
           <div className="mt-5 space-y-2">
             {filteredPatients.map((patient) => {
-              const active = selectedPatient?.id === patient.id;
+              const active = selectedPatientId === patient.patientId;
               return (
                 <button
-                  key={patient.id}
+                  key={patient.patientId}
                   type="button"
-                  onClick={() => setSelectedPatientId(patient.id)}
+                  onClick={() => {
+                    setDetail(null);
+                    setSelectedPatientId(patient.patientId);
+                  }}
                   className={`w-full border px-4 py-4 text-left transition-colors ${
                     active
                       ? "rounded-xl border-primary bg-primary/[0.045]"
@@ -93,26 +139,24 @@ export default function DoctorRecordsPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold">{patient.name}</p>
+                      <p className="font-semibold">{patient.patientName}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {patient.age} years old • {patient.sex}
+                        {patient.age ? `${patient.age} years old` : "Age not set"} •{" "}
+                        {formatSex(patient.sex)}
                       </p>
                     </div>
-                    <Badge
-                      variant={patient.status === "Waiting" ? "secondary" : "outline"}
-                      className="h-fit"
-                    >
-                      {patient.status}
+                    <Badge variant="outline" className="h-fit">
+                      {patient.recordCount} records
                     </Badge>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    {patient.primaryConcern}
+                    {patient.latestConcern}
                   </p>
                 </button>
               );
             })}
 
-            {filteredPatients.length === 0 ? (
+            {!loading && filteredPatients.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
                 No matching patients found.
               </div>
@@ -121,20 +165,36 @@ export default function DoctorRecordsPage() {
         </aside>
 
         <div className="bg-[#fffdf8] px-6 py-5 sm:px-8">
-          {selectedPatient ? (
-            <PatientRecordPanels patient={selectedPatient} />
-          ) : (
-            <div className="rounded-xl border border-dashed border-border bg-white px-5 py-10 text-sm text-muted-foreground">
-              Select a patient to open the record view.
+          {error ? (
+            <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-4 text-sm text-destructive">
+              {error}
             </div>
-          )}
+          ) : null}
+
+          {loading ? (
+            <div className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground">
+              Loading patient records...
+            </div>
+          ) : null}
+
+          {!loading && detailLoading ? (
+            <div className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground">
+              Opening patient chart...
+            </div>
+          ) : null}
+
+          {!loading && !detailLoading && detail ? (
+            <PatientRecordPanels detail={detail} />
+          ) : null}
         </div>
       </section>
     </div>
   );
 }
 
-function PatientRecordPanels({ patient }: { patient: DoctorPatientRecord }) {
+function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
+  const { patient, appointments, records } = detail;
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
       <div className="space-y-6">
@@ -144,16 +204,30 @@ function PatientRecordPanels({ patient }: { patient: DoctorPatientRecord }) {
               <UserRound className="size-5" />
             </span>
             <div>
-              <p className="font-bold">{patient.name}</p>
+              <p className="font-bold">
+                {patient.firstName} {patient.lastName}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {patient.age} years old • {patient.sex}
+                {patient.age ? `${patient.age} years old` : "Age not set"} •{" "}
+                {formatSex(patient.sex)}
               </p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 text-sm">
-            <InfoRow label="Primary concern" value={patient.primaryConcern} />
-            <InfoRow label="Known history" value={patient.medicalHistory} />
-            <InfoRow label="Allergies" value={patient.allergies} />
+            <InfoRow label="Email" value={patient.email} />
+            <InfoRow label="Mobile" value={patient.mobileNumber} />
+            <InfoRow
+              label="Known history"
+              value={patient.basicMedicalHistory || "No medical history added yet."}
+            />
+            <InfoRow
+              label="Allergies"
+              value={patient.allergies.join(", ") || "None reported"}
+            />
+            <InfoRow
+              label="Existing conditions"
+              value={patient.existingConditions.join(", ") || "None reported"}
+            />
           </div>
         </section>
 
@@ -161,30 +235,32 @@ function PatientRecordPanels({ patient }: { patient: DoctorPatientRecord }) {
           <SectionHeader
             icon={<Clock3 className="size-5" />}
             title="Appointment history"
-            copy="Previous and upcoming sessions for this patient"
-            badge={`${patient.appointments.length} records`}
+            copy="Consultations in this app, including sessions with other doctors"
+            badge={`${appointments.length} records`}
           />
           <div className="mt-3 space-y-2">
-            {patient.appointments.map((item) => (
+            {appointments.map((appointment) => (
               <article
-                key={`${patient.id}-${item.date}-${item.time}`}
-                className="grid gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4 py-4 sm:grid-cols-[140px_1fr_auto]"
+                key={appointment._id}
+                className="grid gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4 py-4 sm:grid-cols-[150px_1fr_auto]"
               >
                 <div>
-                  <p className="text-sm font-bold text-primary">{item.date}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.time}</p>
-                </div>
-                <div>
-                  <p className="font-semibold">{item.type}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {item.concern}
+                  <p className="text-sm font-bold text-primary">
+                    {formatDate(appointment.scheduledStartAt)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatTime(appointment.scheduledStartAt)} -{" "}
+                    {formatTime(appointment.scheduledEndAt)}
                   </p>
                 </div>
-                <Badge
-                  variant={item.status === "Upcoming" ? "secondary" : "outline"}
-                  className="h-fit"
-                >
-                  {item.status}
+                <div>
+                  <p className="font-semibold">{appointment.consultationLabel || appointment.specializationName}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {appointment.doctorName} • {appointment.specializationName}
+                  </p>
+                </div>
+                <Badge variant="outline" className="h-fit">
+                  {formatStatus(appointment.status)}
                 </Badge>
               </article>
             ))}
@@ -195,20 +271,53 @@ function PatientRecordPanels({ patient }: { patient: DoctorPatientRecord }) {
           <SectionHeader
             icon={<FileText className="size-5" />}
             title="Consultation notes"
-            copy="Previous doctor-authored summaries"
+            copy="Public notes from all doctors plus your private notes for future care"
+            badge={`${records.length} records`}
           />
           <div className="mt-3 grid gap-2">
-            {patient.notes.map((item) => (
+            {records.map((record) => (
               <article
-                key={`${patient.id}-${item.title}`}
+                key={record._id}
                 className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
               >
-                <p className="text-sm font-bold">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {item.copy}
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold">{record.doctorName}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {record.specializationName} • {formatDate(record.createdAt)}
+                    </p>
+                  </div>
+                  <Badge variant="outline">Record</Badge>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <RecordBubble
+                    tone="public"
+                    label="Public note"
+                    value={record.publicNote || record.consultationSummary || "No public summary shared yet."}
+                  />
+                  {record.recommendations ? (
+                    <RecordBubble
+                      tone="public"
+                      label="Recommendations"
+                      value={record.recommendations}
+                    />
+                  ) : null}
+                  {record.canViewPrivateNote ? (
+                    <RecordBubble
+                      tone="private"
+                      label="Private doctor note"
+                      value={record.privateNote || "No private note saved yet."}
+                    />
+                  ) : null}
+                </div>
               </article>
             ))}
+            {records.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+                No consultation notes have been saved for this patient yet.
+              </div>
+            ) : null}
           </div>
         </section>
       </div>
@@ -218,37 +327,43 @@ function PatientRecordPanels({ patient }: { patient: DoctorPatientRecord }) {
           <SectionHeader
             icon={<Pill className="size-5" />}
             title="Prescription history"
-            copy="Recently issued medications and instructions"
+            copy="Medications previously issued in the app"
           />
           <div className="mt-3 space-y-2">
-            {patient.prescriptions.map((item) => (
-              <article
-                key={`${patient.id}-${item.name}-${item.issued}`}
-                className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="font-semibold">{item.name}</p>
-                  <Badge variant="outline">Issued {item.issued}</Badge>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {item.instruction}
-                </p>
-              </article>
-            ))}
+            {records.flatMap((record) =>
+              record.prescriptions.map((item, index) => (
+                <article
+                  key={`${record._id}-${item.medicine}-${index}`}
+                  className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold">{item.medicine}</p>
+                    <Badge variant="outline">{record.doctorName}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {[item.dosage, item.instruction, item.duration]
+                      .filter(Boolean)
+                      .join(" • ") || "No instruction added."}
+                  </p>
+                </article>
+              )),
+            )}
+            {records.every((record) => record.prescriptions.length === 0) ? (
+              <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+                No prescriptions saved for this patient yet.
+              </div>
+            ) : null}
           </div>
         </section>
 
         <section className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-5 py-5">
-          <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-            Doctor action
+          <p className="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-primary uppercase">
+            <ShieldCheck className="size-4" />
+            Access reminder
           </p>
-          <p className="mt-2 text-lg font-bold">Continue care for this patient</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Button className="h-11 rounded-xl">Open consult room</Button>
-            <Button variant="outline" className="h-11 rounded-xl">
-              Write new notes
-            </Button>
-          </div>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Public consultation history and prescriptions can help with continuity of care. Private notes remain visible only to the doctor who authored them.
+          </p>
         </section>
       </div>
     </div>
@@ -282,6 +397,31 @@ function SectionHeader({
   );
 }
 
+function RecordBubble({
+  tone,
+  label,
+  value,
+}: {
+  tone: "public" | "private";
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      className={
+        tone === "public"
+          ? "rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3"
+          : "rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3"
+      }
+    >
+      <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+        {label}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{value}</p>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-b-0 last:pb-0">
@@ -289,4 +429,29 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="max-w-[58%] text-right font-medium">{value}</span>
     </div>
   );
+}
+
+function formatSex(value: DoctorPatientListItem["sex"]) {
+  return value === "prefer_not_to_say"
+    ? "Prefer not to say"
+    : value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatStatus(status: string) {
+  return status.replace(/_/g, " ");
 }

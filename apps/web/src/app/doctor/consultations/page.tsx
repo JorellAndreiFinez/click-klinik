@@ -95,31 +95,34 @@ export default function DoctorConsultationsPage() {
       ),
     [appointments],
   );
+  const revenue = useMemo(() => getDoctorRevenue(appointments), [appointments]);
 
   if (!doctor) {
     return null;
   }
 
   return (
-    <div className="min-h-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)]">
-      <section className="border-b border-[#12324d]/10 bg-[linear-gradient(135deg,#0d3553_0%,#123f63_58%,#15496f_100%)] text-primary-foreground">
+    <div className="min-h-full bg-[#f7f2e8]">
+      <section className="border-b border-[#12324d]/10 bg-white">
         <div className="grid gap-6 px-6 py-7 sm:px-8 xl:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
+            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
               Active consultations
             </p>
-            <h1 className="mt-3 text-3xl font-bold">Doctor booking queue</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-primary-foreground/68">
+            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+              Doctor booking queue
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               Review booked teleconsults, open Google Meet, and move sessions through their active status.
             </p>
           </div>
-          <div className="rounded-2xl border border-primary-foreground/12 bg-primary-foreground/[0.06] p-5">
-            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+          <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] p-5">
+            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
               Overview
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <SummaryBox label="Upcoming" value={String(activeAppointments.length)} />
-              <SummaryBox label="All consults" value={String(appointments.length)} />
+              <SummaryBox label="Earnings" value={formatPhp(revenue.availablePayoutPhp)} />
             </div>
           </div>
         </div>
@@ -170,7 +173,7 @@ export default function DoctorConsultationsPage() {
                   <InfoTile label="Patient email" value={appointment.patientEmail} />
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <InfoTile
                     label="Consultation"
                     value={getConsultationLabel(appointment)}
@@ -180,6 +183,10 @@ export default function DoctorConsultationsPage() {
                     value={formatAppointmentFee(appointment.totalFeePhp)}
                   />
                   <InfoTile label="Payment" value={formatPaymentStatus(appointment.paymentStatus)} />
+                  <InfoTile
+                    label="Doctor payout"
+                    value={formatDoctorPayout(appointment)}
+                  />
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -225,11 +232,11 @@ export default function DoctorConsultationsPage() {
 
 function SummaryBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-primary-foreground/10 bg-primary-foreground/[0.04] px-4 py-3">
-      <p className="text-[11px] font-bold tracking-[0.16em] text-secondary uppercase">
+    <div className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-3">
+      <p className="text-[11px] font-bold tracking-[0.16em] text-muted-foreground uppercase">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
+      <p className="mt-2 text-2xl font-bold text-primary">{value}</p>
     </div>
   );
 }
@@ -282,4 +289,46 @@ function formatAppointmentFee(totalFeePhp?: number) {
   return typeof totalFeePhp === "number" && Number.isFinite(totalFeePhp)
     ? formatPhp(totalFeePhp)
     : "Not set";
+}
+
+function formatDoctorPayout(appointment: Appointment) {
+  const commission = getPlatformCommissionPhp(appointment);
+  const payout = getDoctorPayoutPhp(appointment);
+  const status =
+    appointment.paymentStatus === "paid"
+      ? "available"
+      : appointment.status === "cancelled"
+        ? "cancelled"
+        : "pending";
+
+  return `${formatPhp(payout)} ${status} • ${formatPhp(commission)} fee`;
+}
+
+function getDoctorRevenue(appointments: Appointment[]) {
+  return appointments.reduce(
+    (summary, appointment) => {
+      if (appointment.paymentStatus === "paid") {
+        summary.availablePayoutPhp += getDoctorPayoutPhp(appointment);
+      }
+
+      return summary;
+    },
+    { availablePayoutPhp: 0 },
+  );
+}
+
+function getDoctorPayoutPhp(appointment: Appointment) {
+  if (typeof appointment.doctorPayoutPhp === "number") {
+    return appointment.doctorPayoutPhp;
+  }
+
+  return Math.max((appointment.totalFeePhp ?? 0) - getPlatformCommissionPhp(appointment), 0);
+}
+
+function getPlatformCommissionPhp(appointment: Appointment) {
+  if (typeof appointment.platformCommissionPhp === "number") {
+    return appointment.platformCommissionPhp;
+  }
+
+  return Math.round((appointment.totalFeePhp ?? 0) * 0.15);
 }

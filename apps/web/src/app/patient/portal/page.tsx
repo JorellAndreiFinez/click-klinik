@@ -1,20 +1,19 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
-  Activity,
-  Bell,
   CalendarDays,
   ChevronRight,
   FileText,
   HeartPulse,
-  Phone,
+  MapPin,
   Search,
   ShieldCheck,
-  UserRound,
+  Sparkles,
+  Video,
 } from "lucide-react";
 
 import { PatientWorkspaceShell } from "../patient-workspace-shell";
@@ -30,6 +29,7 @@ export default function PatientPortalPage() {
   const firebaseConfigured = isFirebaseConfigured();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [doctorSearchNeed, setDoctorSearchNeed] = useState("");
   const [message, setMessage] = useState(
     firebaseConfigured
       ? "Loading your secure patient profile..."
@@ -96,16 +96,49 @@ export default function PatientPortalPage() {
     router.replace("/auth");
   }
 
-  const activeAppointments = appointments.filter(
-    (appointment) =>
-      appointment.status !== "completed" && appointment.status !== "cancelled",
+  function handleDoctorMatchSearch() {
+    const query = new URLSearchParams();
+
+    if (doctorSearchNeed.trim()) {
+      query.set("symptom", doctorSearchNeed.trim());
+    }
+
+    const location = profile
+      ? [profile.cityMunicipalityName, profile.provinceName]
+          .filter(Boolean)
+          .join(", ")
+      : "";
+
+    if (location) {
+      query.set("location", location);
+    }
+
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    router.push(`/patient/doctors${suffix}`);
+  }
+
+  const activeAppointments = useMemo(
+    () =>
+      appointments.filter(
+        (appointment) =>
+          appointment.status !== "completed" &&
+          appointment.status !== "cancelled",
+      ),
+    [appointments],
   );
-  const patientAlerts = buildPatientAlerts(appointments);
+  const nextAppointment = activeAppointments[0];
+  const latestRecord = appointments.find(
+    (appointment) => appointment.status === "completed",
+  );
+  const locationText =
+    profile && [profile.cityMunicipalityName, profile.provinceName]
+      .filter(Boolean)
+      .join(", ");
 
   if (!profile) {
     return (
       <main className="clinic-grid flex min-h-screen items-center justify-center px-5">
-        <div className="max-w-md rounded-3xl border border-border bg-card p-8 text-center">
+        <div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center">
           <HeartPulse className="mx-auto size-10 text-primary" />
           <p className="mt-5 text-sm text-muted-foreground">{message}</p>
           {message.includes("incomplete") ? (
@@ -123,194 +156,184 @@ export default function PatientPortalPage() {
       patientName={`${profile.firstName} ${profile.lastName}`}
       onSignOut={handleSignOut}
     >
-      <div className="min-h-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)]">
-        <section className="border-b border-[#12324d]/10 bg-[linear-gradient(135deg,#0d3553_0%,#123f63_58%,#15496f_100%)] text-primary-foreground">
-          <div className="grid gap-6 px-6 py-7 sm:px-8 xl:grid-cols-[1.18fr_0.82fr]">
+      <div className="min-h-full bg-[#f7f2e8]">
+        <header className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
-                Patient overview
+              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                Home
               </p>
-              <h1 className="mt-3 text-3xl font-bold">Mabuhay.</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-primary-foreground/68">
-                Manage teleconsults, review your records, and keep your health
-                details ready for doctor-reviewed care.
+              <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+                Hi, {profile.firstName}. What do you need today?
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Start a consultation, check your appointment, or open records from your doctor.
               </p>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <QuickStat
-                  icon={<Phone className="size-4" />}
-                  label="Mobile"
-                  value={profile.mobileNumber}
-                />
-                <QuickStat
-                  icon={<Activity className="size-4" />}
-                  label="Vitals"
-                  value={`${profile.heightCm} cm / ${profile.weightKg} kg`}
-                />
-                <QuickStat
-                  icon={<ShieldCheck className="size-4" />}
-                  label="Privacy"
-                  value="Consent active"
-                />
-                <QuickStat
-                  icon={<Bell className="size-4" />}
-                  label="Alerts"
-                  value={`${patientAlerts.length} live`}
-                />
-              </div>
             </div>
 
-            <div className="rounded-2xl border border-primary-foreground/12 bg-primary-foreground/6 p-5">
-              <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
-                Ready for care
-              </p>
-              <div className="mt-4 space-y-3">
-                <CompactAction
-                  href="/patient/doctors"
-                  icon={<Search className="size-4" />}
-                  title="Find matched doctors"
-                  copy="Search by symptom, specialty, and location."
-                />
-                <CompactAction
-                  href="/patient/records"
-                  icon={<FileText className="size-4" />}
-                  title="Open my records"
-                  copy="Review prescriptions and consultation notes."
-                />
-                <CompactAction
-                  href="/patient/appointments"
-                  icon={<CalendarDays className="size-4" />}
-                  title="Upcoming consultations"
-                  copy={`${activeAppointments.length} active appointment${activeAppointments.length === 1 ? "" : "s"}.`}
-                />
-              </div>
-              <Link
-                href="/privacy"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-secondary"
-              >
-                View Privacy Notice
-                <ChevronRight className="size-4" />
-              </Link>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="h-9 rounded-full px-3">
+                <ShieldCheck className="size-3.5" />
+                Private care
+              </Badge>
+              {locationText ? (
+                <Badge variant="outline" className="h-9 rounded-full px-3">
+                  <MapPin className="size-3.5" />
+                  {locationText}
+                </Badge>
+              ) : null}
             </div>
           </div>
-        </section>
+        </header>
 
-        <section className="grid gap-0 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="border-b border-[#12324d]/10 bg-[#fffdf8] px-6 py-6 sm:px-8 xl:border-r xl:border-b-0">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                  Quick actions
-                </p>
-                <p className="mt-1 text-xl font-bold">
-                  What do you need today?
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <PortalAction
+        <main className="grid lg:grid-cols-[1fr_360px]">
+          <section className="border-b border-[#12324d]/10 bg-[#fffdf8] px-6 py-6 sm:px-8 lg:border-r lg:border-b-0">
+            <div className="grid gap-3 md:grid-cols-3">
+              <HomeAction
                 href="/patient/doctors"
                 icon={<Search className="size-5" />}
                 title="Find a doctor"
-                copy="Browse approved doctors"
+                copy="Search by symptoms or specialization"
               />
-              <PortalAction
+              <HomeAction
                 href="/patient/appointments"
                 icon={<CalendarDays className="size-5" />}
-                title="Appointments"
-                copy="Check your consult schedule"
+                title="My appointments"
+                copy={`${activeAppointments.length} active consultation${activeAppointments.length === 1 ? "" : "s"}`}
               />
-              <PortalAction
+              <HomeAction
                 href="/patient/records"
                 icon={<FileText className="size-5" />}
-                title="Records"
-                copy="Review prescriptions and notes"
+                title="My records"
+                copy={latestRecord ? "Latest doctor notes available" : "Notes and prescriptions"}
               />
+            </div>
+
+            <div className="mt-6 border-y border-[#12324d]/10 py-6">
+              <div className="max-w-3xl">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-primary">
+                    <Sparkles className="size-4" />
+                  </span>
+                  <div>
+                    <h2 className="font-bold text-primary">Tell us your concern</h2>
+                    <p className="text-sm text-muted-foreground">
+                      We will help match you with a relevant doctor type.
+                    </p>
+                  </div>
+                </div>
+
+                <textarea
+                  value={doctorSearchNeed}
+                  onChange={(event) => setDoctorSearchNeed(event.target.value)}
+                  rows={3}
+                  placeholder="Example: diabetes checkup, cough for 3 days, chest pain"
+                  className="mt-4 min-h-24 w-full rounded-xl border border-[#12324d]/12 bg-white px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button className="h-11 rounded-xl" onClick={handleDoctorMatchSearch}>
+                    <Search className="size-4" />
+                    Find matched doctors
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Guidance only. For emergencies, go to the nearest hospital.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="mt-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                    Care alerts
-                  </p>
-                  <p className="mt-1 text-xl font-bold">Booked and upcoming</p>
-                </div>
-                <Badge variant="outline">{patientAlerts.length} updates</Badge>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {patientAlerts.slice(0, 4).map((alert) => (
-                  <article
-                    key={alert.id}
-                    className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">{alert.title}</p>
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                          {alert.message}
-                        </p>
-                      </div>
-                      <Badge variant="secondary">{alert.kind}</Badge>
+              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                Your next step
+              </p>
+              {nextAppointment ? (
+                <article className="mt-3 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <Badge variant="secondary">{formatStatus(nextAppointment.status)}</Badge>
+                      <h2 className="mt-3 text-xl font-bold text-primary">
+                        {nextAppointment.doctorName}
+                      </h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatDate(nextAppointment.scheduledStartAt)} at{" "}
+                        {formatTime(nextAppointment.scheduledStartAt)}
+                      </p>
                     </div>
-                  </article>
-                ))}
-                {patientAlerts.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-[#12324d]/12 bg-white px-4 py-6 text-sm text-muted-foreground">
-                    No active booking or upcoming consultation alerts right now.
+                    <div className="flex flex-wrap gap-3">
+                      <Button asChild className="h-11 rounded-xl">
+                        <Link href="/patient/appointments">
+                          <Video className="size-4" />
+                          Open appointment
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
-                ) : null}
-              </div>
+                </article>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-[#12324d]/14 bg-white px-5 py-6">
+                  <p className="font-semibold text-primary">No appointment booked yet.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    You can find a doctor when you are ready.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
+          </section>
 
-          <div className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                  Health snapshot
-                </p>
-                <p className="mt-1 text-xl font-bold">Profile summary</p>
+          <aside className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
+            <section className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                Care summary
+              </p>
+              <div className="mt-4 space-y-4">
+                <SummaryRow
+                  label="Mobile"
+                  value={profile.mobileNumber}
+                />
+                <SummaryRow
+                  label="Allergies"
+                  value={profile.allergies.join(", ") || "None reported"}
+                />
+                <SummaryRow
+                  label="Conditions"
+                  value={profile.existingConditions.join(", ") || "None reported"}
+                />
+                <SummaryRow
+                  label="Emergency contact"
+                  value={
+                    profile.emergencyContactName
+                      ? `${profile.emergencyContactName}${profile.emergencyContactNumber ? `, ${profile.emergencyContactNumber}` : ""}`
+                      : "Not added"
+                  }
+                />
               </div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#12324d]/10 bg-white px-3 py-1.5 text-xs font-semibold text-primary">
-                <UserRound className="size-3.5" />
-                Patient profile ready
-              </span>
-            </div>
+            </section>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <ProfileDetail label="Mobile" value={profile.mobileNumber} />
-              <ProfileDetail label="Height" value={`${profile.heightCm} cm`} />
-              <ProfileDetail label="Weight" value={`${profile.weightKg} kg`} />
-              <ProfileDetail
-                label="Emergency contact"
-                value={
-                  profile.emergencyContactName
-                    ? `${profile.emergencyContactName}${profile.emergencyContactNumber ? ` ${profile.emergencyContactNumber}` : ""}`
-                    : "Not added"
-                }
-              />
-              <ProfileDetail
-                label="Allergies"
-                value={profile.allergies.join(", ") || "None reported"}
-                className="sm:col-span-2"
-              />
-              <ProfileDetail
-                label="Existing conditions"
-                value={profile.existingConditions.join(", ") || "None reported"}
-                className="sm:col-span-2"
-              />
-            </div>
-          </div>
-        </section>
+            <section className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                Quick links
+              </p>
+              <div className="mt-4 grid gap-2">
+                <SmallLink href="/patient/appointments" icon={<CalendarDays className="size-4" />}>
+                  View appointments
+                </SmallLink>
+                <SmallLink href="/patient/records" icon={<FileText className="size-4" />}>
+                  View records
+                </SmallLink>
+                <SmallLink href="/privacy" icon={<ShieldCheck className="size-4" />}>
+                  Privacy notice
+                </SmallLink>
+              </div>
+            </section>
+          </aside>
+        </main>
       </div>
     </PatientWorkspaceShell>
   );
 }
 
-function PortalAction({
+function HomeAction({
   href,
   icon,
   title,
@@ -324,126 +347,59 @@ function PortalAction({
   return (
     <Link
       href={href}
-      className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-5 transition-colors hover:bg-primary/[0.03]"
+      className="group rounded-xl border border-[#12324d]/10 bg-white px-4 py-5 transition-colors hover:bg-[#f7f2e8]"
     >
       <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
         {icon}
       </span>
-      <h2 className="mt-5 font-bold">{title}</h2>
-      <p className="mt-2 text-xs leading-6 text-muted-foreground">{copy}</p>
+      <div className="mt-5 flex items-end justify-between gap-3">
+        <div>
+          <h2 className="font-bold text-primary">{title}</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{copy}</p>
+        </div>
+        <ChevronRight className="size-4 shrink-0 text-primary/35 transition-transform group-hover:translate-x-0.5" />
+      </div>
     </Link>
   );
 }
 
-function CompactAction({
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b border-[#12324d]/8 pb-3 last:border-b-0 last:pb-0">
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function SmallLink({
   href,
   icon,
-  title,
-  copy,
+  children,
 }: {
   href: string;
   icon: ReactNode;
-  title: string;
-  copy: string;
+  children: ReactNode;
 }) {
   return (
     <Link
       href={href}
-      className="flex items-start justify-between gap-3 rounded-xl border border-primary-foreground/10 bg-primary-foreground/4 px-4 py-3 transition-colors hover:bg-primary-foreground/[0.08]"
+      className="flex h-11 items-center justify-between rounded-xl border border-[#12324d]/10 px-3 text-sm font-semibold text-primary transition-colors hover:bg-[#f7f2e8]"
     >
-      <div className="flex gap-3">
-        <span className="mt-0.5 flex size-9 items-center justify-center rounded-xl bg-secondary text-primary">
-          {icon}
-        </span>
-        <div>
-          <p className="font-semibold">{title}</p>
-          <p className="mt-1 text-xs leading-5 text-primary-foreground/66">
-            {copy}
-          </p>
-        </div>
-      </div>
-      <ChevronRight className="mt-1 size-4 shrink-0 text-primary-foreground/56" />
+      <span className="flex items-center gap-2">
+        {icon}
+        {children}
+      </span>
+      <ChevronRight className="size-4 text-primary/40" />
     </Link>
   );
 }
 
-function QuickStat({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-primary-foreground/12 bg-primary-foreground/[0.06] px-3 py-2.5">
-      <p className="flex items-center gap-2 text-[11px] font-bold tracking-[0.12em] text-secondary uppercase">
-        {icon}
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
-    </div>
-  );
+function formatStatus(value: Appointment["status"]) {
+  return value.replace(/_/g, " ");
 }
 
-function ProfileDetail({
-  label,
-  value,
-  className,
-}: {
-  label: string;
-  value: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 ${className ?? ""}`}
-    >
-      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-2 font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function buildPatientAlerts(appointments: Appointment[]) {
-  const now = Date.now();
-
-  return appointments
-    .filter(
-      (appointment) =>
-        appointment.status !== "completed" &&
-        appointment.status !== "cancelled",
-    )
-    .map((appointment) => {
-      const startAt = new Date(appointment.scheduledStartAt).getTime();
-      const hoursUntil = (startAt - now) / (1000 * 60 * 60);
-
-      if (hoursUntil <= 24) {
-        return {
-          id: `upcoming-${appointment._id}`,
-          kind: "upcoming",
-          title: "Consultation starting soon",
-          message: `${appointment.doctorName} on ${formatAlertDate(appointment.scheduledStartAt)} at ${formatAlertTime(appointment.scheduledStartAt)}.`,
-          createdAt: appointment.scheduledStartAt,
-        };
-      }
-
-      return {
-        id: `booked-${appointment._id}`,
-        kind: "booked",
-        title: "Consultation booked",
-        message: `${appointment.doctorName} is scheduled for ${formatAlertDate(appointment.scheduledStartAt)} at ${formatAlertTime(appointment.scheduledStartAt)}.`,
-        createdAt: appointment.createdAt,
-      };
-    })
-    .sort(
-      (left, right) =>
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    );
-}
-
-function formatAlertDate(value: string) {
+function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     weekday: "short",
     month: "short",
@@ -451,7 +407,7 @@ function formatAlertDate(value: string) {
   }).format(new Date(value));
 }
 
-function formatAlertTime(value: string) {
+function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     hour: "numeric",
     minute: "2-digit",

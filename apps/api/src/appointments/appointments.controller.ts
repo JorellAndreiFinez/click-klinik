@@ -12,6 +12,7 @@ import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { RequestRefundDto } from './dto/request-refund.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { Appointment } from './schemas/appointment.schema';
 
@@ -57,5 +58,50 @@ export class AppointmentsController {
     @Param('id') id: string,
   ): Promise<{ meetLink?: string; appointment: Appointment }> {
     return this.appointmentsService.joinAppointment(request.user, id);
+  }
+
+  @Post(':id/refund-request')
+  requestRefundAndCancel(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: RequestRefundDto,
+  ): Promise<Appointment> {
+    return this.appointmentsService.requestRefundAndCancel(request.user, id, dto);
+  }
+
+  @Post(':id/refund')
+  requestRefundAndCancelAlias(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: RequestRefundDto,
+  ): Promise<Appointment> {
+    return this.appointmentsService.requestRefundAndCancel(request.user, id, dto);
+  }
+
+  @Post(':id/payment/refresh')
+  refreshPaymentStatus(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<Appointment> {
+    return this.appointmentsService.refreshPaymentStatus(request.user, id);
+  }
+
+  @Post(':id/refresh-payment')
+  refreshPaymentStatusAlias(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<Appointment> {
+    return this.appointmentsService.refreshPaymentStatus(request.user, id);
+  }
+
+  @Post('payments/:referenceId/refresh')
+  refreshPaymentStatusByReference(
+    @Req() request: AuthenticatedRequest,
+    @Param('referenceId') referenceId: string,
+  ): Promise<Appointment> {
+    return this.appointmentsService.refreshPaymentStatusByReference(
+      request.user,
+      referenceId,
+    );
   }
 }

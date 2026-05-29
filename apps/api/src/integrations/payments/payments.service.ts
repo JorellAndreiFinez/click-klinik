@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 
 export type PaymentProvider = 'pay_later' | 'paymongo' | 'xendit';
-export type PaymentStatus = 'mock_pending' | 'pending' | 'unpaid';
+export type PaymentStatus = 'mock_pending' | 'paid' | 'pending' | 'unpaid';
 
 type CreateCheckoutInput = {
   provider: PaymentProvider;
@@ -26,6 +26,17 @@ export type CheckoutResult = {
   checkoutUrl?: string;
   referenceId?: string;
   providerPaymentId?: string;
+};
+
+export type PaymentVerificationResult = {
+  paymentStatus: 'paid' | 'pending' | 'unpaid';
+  providerStatus?: string;
+};
+
+export type RefundResult = {
+  providerRefundId?: string;
+  providerStatus: string;
+  refundStatus: 'requested' | 'refunded';
 };
 
 @Injectable()
@@ -83,7 +94,11 @@ export class PaymentsService {
           invoice_created: ['email'],
           invoice_paid: ['email'],
         },
-        success_redirect_url: this.buildAppRedirectUrl('/patient/appointments'),
+        success_redirect_url: this.buildAppRedirectUrl(
+          `/patient/appointments?paymentReference=${encodeURIComponent(
+            input.referenceId,
+          )}&paymentStatusRefresh=1`,
+        ),
         failure_redirect_url: this.buildAppRedirectUrl('/patient/appointments'),
       }),
     });
@@ -222,6 +237,238 @@ export class PaymentsService {
 
     return `${frontendUrl}${path}`;
   }
+
+  async verifyCheckout(input: {
+    provider: PaymentProvider;
+    providerPaymentId?: string;
+    referenceId?: string;
+  }): Promise<PaymentVerificationResult> {
+    if (input.provider === 'xendit') {
+      return this.verifyXenditInvoice(input);
+    }
+
+    if (input.provider === 'paymongo') {
+      return this.verifyPayMongoCheckout(input);
+    }
+
+    return { paymentStatus: 'unpaid' };
+  }
+
+  async refundXenditInvoice(input: {
+    providerPaymentId: string;
+    referenceId: string;
+    amountPhp: number;
+    reason?: string;
+  }): Promise<RefundResult> {
+    const secretKey = this.configService.get<string>('XENDIT_SECRET_KEY');
+
+    if (!secretKey) {
+      this.logger.warn(
+        'Xendit secret key is not configured. Marking refund as requested for local development.',
+      );
+      return {
+        providerRefundId: `mock-refund-${randomUUID()}`,
+        providerStatus: 'PENDING',
+        refundStatus: 'requested',
+      };
+    }
+
+    const response = await fetch('https://api.xendit.co/refunds', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${toBasicAuth(secretKey)}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reference_id: `${input.referenceId}-refund`,
+        invoice_id: input.providerPaymentId,
+        currency: 'PHP',
+        amount: input.amountPhp,
+        reason: 'CANCELLATION',
+        metadata: {
+          appointment_reference_id: input.referenceId,
+          patient_reason: input.reason ?? 'Patient requested refund within 6 hours.',
+        },
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null;
+
+    if (!response.ok) {
+      const message =
+        typeof payload?.message === 'string'
+          ? payload.message
+          : 'Xendit refund request failed.';
+      this.logger.warn(`Xendit refund failed for ${input.referenceId}: ${message}`);
+
+      return {
+        providerRefundId: getStringField(payload, ['id']),
+        providerStatus: getStringField(payload, ['status', 'error_code']) ?? 'FAILED',
+        refundStatus: 'requested',
+      };
+    }
+
+    const providerStatus =
+      getStringField(payload, ['status'])?.toUpperCase() ?? 'PENDING';
+
+    return {
+      providerRefundId: getStringField(payload, ['id']),
+      providerStatus,
+      refundStatus: providerStatus === 'SUCCEEDED' ? 'refunded' : 'requested',
+    };
+  }
+
+  private async verifyXenditInvoice(input: {
+    providerPaymentId?: string;
+    referenceId?: string;
+  }): Promise<PaymentVerificationResult> {
+    const secretKey = this.configService.get<string>('XENDIT_SECRET_KEY');
+
+    if (!secretKey || (!input.providerPaymentId && !input.referenceId)) {
+      return { paymentStatus: 'pending' };
+    }
+
+    const invoicePayload = await this.getXenditInvoicePayload(secretKey, input);
+    const status = getStringField(invoicePayload, ['status'])?.toUpperCase();
+
+    if (status) {
+      this.logger.log(
+        `Verified Xendit invoice ${input.referenceId ?? input.providerPaymentId ?? 'unknown'} with status ${status}.`,
+      );
+    }
+
+    return {
+      paymentStatus: isPaidProviderStatus(status) ? 'paid' : 'pending',
+      providerStatus: status,
+    };
+  }
+
+  private async getXenditInvoicePayload(
+    secretKey: string,
+    input: {
+      providerPaymentId?: string;
+      referenceId?: string;
+    },
+  ): Promise<Record<string, unknown> | null> {
+    if (input.providerPaymentId) {
+      const payload = await this.requestXenditInvoice(
+        secretKey,
+        `https://api.xendit.co/v2/invoices/${input.providerPaymentId}`,
+      );
+      const invoicePayload = Array.isArray(payload) ? null : payload;
+
+      if (
+        isPaidProviderStatus(
+          getStringField(invoicePayload, ['status'])?.toUpperCase(),
+        )
+      ) {
+        return invoicePayload;
+      }
+
+      if (invoicePayload && !input.referenceId) {
+        return invoicePayload;
+      }
+    }
+
+    if (!input.referenceId) {
+      return null;
+    }
+
+    const referencePayload = await this.requestXenditInvoice(
+      secretKey,
+      `https://api.xendit.co/v2/invoices?external_id=${encodeURIComponent(
+        input.referenceId,
+      )}`,
+    );
+
+    if (Array.isArray(referencePayload)) {
+      return normalizeXenditInvoiceList(referencePayload, input.referenceId);
+    }
+
+    const data =
+      !Array.isArray(referencePayload) &&
+      typeof referencePayload?.data === 'object' &&
+      referencePayload.data !== null
+        ? referencePayload.data
+        : undefined;
+
+    if (Array.isArray(data)) {
+      return normalizeXenditInvoiceList(data, input.referenceId);
+    }
+
+    return referencePayload;
+  }
+
+  private async requestXenditInvoice(
+    secretKey: string,
+    url: string,
+  ): Promise<Record<string, unknown> | Record<string, unknown>[] | null> {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${toBasicAuth(secretKey)}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | Record<string, unknown>[]
+      | null;
+
+    if (!response.ok) {
+      this.logger.warn(`Unable to verify Xendit invoice from ${url}.`);
+      return null;
+    }
+
+    return payload;
+  }
+
+  private async verifyPayMongoCheckout(input: {
+    providerPaymentId?: string;
+  }): Promise<PaymentVerificationResult> {
+    const secretKey = this.configService.get<string>('PAYMONGO_SECRET_KEY');
+
+    if (!secretKey || !input.providerPaymentId) {
+      return { paymentStatus: 'pending' };
+    }
+
+    const response = await fetch(
+      `https://api.paymongo.com/v1/checkout_sessions/${input.providerPaymentId}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Basic ${toBasicAuth(secretKey)}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+    const payload = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null;
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Unable to verify PayMongo checkout ${input.providerPaymentId}.`,
+      );
+      return { paymentStatus: 'pending' };
+    }
+
+    const data =
+      typeof payload?.data === 'object' && payload.data !== null
+        ? (payload.data as Record<string, unknown>)
+        : null;
+    const attributes =
+      typeof data?.attributes === 'object' && data.attributes !== null
+        ? (data.attributes as Record<string, unknown>)
+        : null;
+    const status = getStringField(attributes, ['payment_intent_status', 'status']);
+
+    return {
+      paymentStatus: status === 'succeeded' || status === 'paid' ? 'paid' : 'pending',
+      providerStatus: status,
+    };
+  }
 }
 
 function toBasicAuth(secretKey: string): string {
@@ -254,4 +501,55 @@ function buildMockCheckout(
     providerPaymentId: `mock-${randomUUID()}`,
     checkoutUrl: `https://example.com/test-checkout/${provider}/${referenceId}`,
   };
+}
+
+function isPaidProviderStatus(status?: string): boolean {
+  return (
+    status === 'PAID' ||
+    status === 'SETTLED' ||
+    status === 'COMPLETED' ||
+    status === 'SUCCEEDED'
+  );
+}
+
+function normalizeXenditInvoiceList(
+  payload: unknown[],
+  referenceId: string,
+): Record<string, unknown> | null {
+  const invoices = payload.filter(
+    (item): item is Record<string, unknown> =>
+      typeof item === 'object' && item !== null,
+  );
+
+  const matchingInvoices = invoices.filter(
+    (invoice) => invoice.external_id === referenceId,
+  );
+  const candidateInvoices =
+    matchingInvoices.length > 0 ? matchingInvoices : invoices;
+
+  const paidInvoice = candidateInvoices.find((invoice) =>
+    isPaidProviderStatus(getStringField(invoice, ['status'])?.toUpperCase()),
+  );
+
+  if (paidInvoice) {
+    return paidInvoice;
+  }
+
+  return sortXenditInvoicesByNewest(candidateInvoices)[0] ?? null;
+}
+
+function sortXenditInvoicesByNewest(
+  invoices: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  return [...invoices].sort((left, right) => {
+    const leftDate = Date.parse(
+      getStringField(left, ['updated', 'created']) ?? '',
+    );
+    const rightDate = Date.parse(
+      getStringField(right, ['updated', 'created']) ?? '',
+    );
+
+    return (Number.isNaN(rightDate) ? 0 : rightDate) -
+      (Number.isNaN(leftDate) ? 0 : leftDate);
+  });
 }

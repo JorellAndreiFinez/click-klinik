@@ -13,8 +13,8 @@ class WeeklyTemplateEntryDto {
   @IsIn([0, 1, 2, 3, 4, 5, 6])
   dayOfWeek!: 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-  @IsIn(['off', 'available', 'unavailable'])
-  status!: 'off' | 'available' | 'unavailable';
+  @IsIn(['off', 'available'])
+  status!: 'off' | 'available';
 
   @IsOptional()
   @IsString()

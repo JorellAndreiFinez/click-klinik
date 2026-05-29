@@ -123,26 +123,26 @@ export default function DoctorScheduleCalendarPage() {
   const openCount = visibleEvents.filter((event) => event.kind === "open").length;
 
   return (
-    <div className="w-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)]">
-      <section className="border-b border-[#12324d]/10 bg-[linear-gradient(135deg,#0d3553_0%,#123f63_58%,#15496f_100%)] text-primary-foreground">
+    <div className="w-full bg-[#f7f2e8]">
+      <section className="border-b border-[#12324d]/10 bg-white">
         <div className="grid xl:grid-cols-[1.08fr_0.92fr]">
           <div className="px-6 py-7 sm:px-8">
-            <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
+            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
               Calendar
             </p>
-            <h1 className="mt-3 text-3xl font-bold">
+            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
               See consultation meetings in 30-minute rows.
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-primary-foreground/68">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               This board follows the doctor&apos;s saved availability and makes booked
               consultations easy to spot in a cleaner day view.
             </p>
           </div>
-          <div className="border-t border-primary-foreground/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l xl:border-primary-foreground/10">
-            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+          <div className="border-t border-[#12324d]/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l">
+            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
               Daily summary
             </p>
-            <div className="mt-4 grid gap-px border border-primary-foreground/10 bg-primary-foreground/10 sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <SummaryStat label="Booked" value={String(bookedCount)} />
               <SummaryStat label="Open" value={String(openCount)} />
               <SummaryStat label="Rows" value={String(visibleEvents.length)} />
@@ -295,11 +295,11 @@ function CalendarCard({ event }: { event: CalendarEvent }) {
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-primary-foreground/[0.05] px-4 py-4">
-      <p className="text-[11px] font-bold tracking-[0.18em] text-secondary uppercase">
+    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+      <p className="text-[11px] font-bold tracking-[0.16em] text-muted-foreground uppercase">
         {label}
       </p>
-      <p className="mt-3 text-2xl font-bold">{value}</p>
+      <p className="mt-3 text-2xl font-bold text-primary">{value}</p>
     </div>
   );
 }

@@ -1,43 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Bell,
   BookOpenText,
   CalendarCheck2,
   CalendarDays,
   CalendarRange,
-  ChevronRight,
   ClipboardPenLine,
   MonitorSmartphone,
-  ShieldCheck,
   Stethoscope,
+  Wallet,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
 import { getMyDoctorAppointments, type Appointment } from "@/lib/appointments-api";
 import {
-  getMyScheduleNotifications,
   getMyScheduleSlots,
-  type ScheduleNotification,
   type ScheduleSlot,
 } from "@/lib/schedule-api";
-
-type DoctorAlert = {
-  id: string;
-  kind: "booked" | "upcoming" | "schedule";
-  title: string;
-  message: string;
-  createdAt: string;
-};
 
 export default function DoctorDashboardPage() {
   const { user, doctor } = useDoctorWorkspace();
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
-  const [notifications, setNotifications] = useState<ScheduleNotification[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   useEffect(() => {
@@ -48,11 +34,9 @@ export default function DoctorDashboardPage() {
     const loadDoctorDashboard = () =>
       Promise.all([
         getMyScheduleSlots(user),
-        getMyScheduleNotifications(user),
         getMyDoctorAppointments(user),
-      ]).then(([nextSlots, nextNotifications, nextAppointments]) => {
+      ]).then(([nextSlots, nextAppointments]) => {
         setSlots(nextSlots);
-        setNotifications(nextNotifications);
         setAppointments(nextAppointments);
       });
 
@@ -65,307 +49,284 @@ export default function DoctorDashboardPage() {
     return () => window.clearInterval(intervalId);
   }, [user]);
 
+  const activeAppointments = useMemo(
+    () =>
+      appointments.filter(
+        (appointment) =>
+          appointment.status !== "completed" && appointment.status !== "cancelled",
+      ),
+    [appointments],
+  );
+
   if (!doctor) {
     return null;
   }
 
-  const nextOpenSlot = slots.find((slot) => slot.status === "available");
-  const blockedCount = slots.filter((slot) => slot.status === "unavailable").length;
+  const nextAppointment = activeAppointments[0] ?? null;
+  const openSlots = slots.filter((slot) => slot.status === "available");
   const displayName = `Dr. ${doctor.firstName} ${doctor.lastName}`;
-  const activeAppointments = appointments.filter(
-    (appointment) =>
-      appointment.status !== "completed" && appointment.status !== "cancelled",
-  );
-  const doctorAlerts = buildDoctorAlerts(appointments, notifications);
-  const nextAppointment = activeAppointments[0];
-  const recentPatients = activeAppointments.slice(0, 4);
+  const revenue = getDoctorRevenue(appointments);
 
   return (
-    <div className="w-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)]">
-      <section className="border-b border-[#12324d]/10 bg-[linear-gradient(135deg,#0d3553_0%,#123f63_58%,#15496f_100%)] text-primary-foreground">
-        <div className="grid xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="px-6 py-7 sm:px-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
-                  Doctor overview
-                </p>
-                <h1 className="mt-3 text-3xl font-bold">{displayName}</h1>
-                <p className="mt-2 text-sm text-primary-foreground/68">
-                  {doctor.specializationName}
-                  {doctor.clinicOrHospital ? ` / ${doctor.clinicOrHospital}` : ""}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <TopPill
-                  icon={<ShieldCheck className="size-3.5" />}
-                  label="Verified"
-                />
-                <TopPill
-                  icon={<Bell className="size-3.5" />}
-                  label={`${doctorAlerts.length} live alerts`}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-px border border-primary-foreground/10 bg-primary-foreground/10 sm:grid-cols-3">
-              <HeroStat
-                label="Next open slot"
-                value={nextOpenSlot ? formatTime(nextOpenSlot.startAt) : "--"}
-                note={nextOpenSlot ? formatDay(nextOpenSlot.startAt) : "No slot yet"}
-              />
-              <HeroStat
-                label="Patients"
-                value={String(new Set(appointments.map((item) => item.patientId)).size)}
-                note="booked patients"
-              />
-              <HeroStat
-                label="Blocked"
-                value={String(blockedCount)}
-                note="schedule periods"
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-primary-foreground/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l xl:border-primary-foreground/10">
-            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
-              Next session
+    <div className="min-h-full bg-[#f7f2e8]">
+      <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
+        <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+          Doctor home
+        </p>
+        <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-primary sm:text-3xl">
+              Good day, {displayName}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {doctor.specializationName}
+              {doctor.clinicOrHospital ? ` • ${doctor.clinicOrHospital}` : ""}
             </p>
-            <div className="mt-4 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-2xl font-bold">
-                  {nextAppointment
-                    ? formatDayLong(nextAppointment.scheduledStartAt)
-                    : nextOpenSlot
-                      ? formatDayLong(nextOpenSlot.startAt)
-                      : "Waiting for schedule"}
-                </p>
-                <p className="mt-2 text-sm text-primary-foreground/66">
-                  {nextAppointment
-                    ? `${nextAppointment.patientName} • ${formatTime(nextAppointment.scheduledStartAt)} - ${formatTime(nextAppointment.scheduledEndAt)}`
-                    : nextOpenSlot
-                      ? `${formatTime(nextOpenSlot.startAt)} - ${formatTime(nextOpenSlot.endAt)}`
-                      : "Add availability to unlock consultation flow."}
-                </p>
-              </div>
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-foreground/[0.06] text-secondary">
-                <Stethoscope className="size-5" />
-              </span>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <ActionButton href="/doctor/session" tone="primary">
-                Open consult room
-              </ActionButton>
-              <ActionButton href="/doctor/consultations" tone="ghost">
-                Active consultations
-              </ActionButton>
-              <ActionButton href="/doctor/schedule/calendar" tone="ghost">
-                View calendar
-              </ActionButton>
-            </div>
           </div>
+          <Badge variant="outline" className="h-9 rounded-full px-3">
+            <Stethoscope className="size-3.5" />
+            Verified doctor
+          </Badge>
         </div>
       </section>
 
-      <section className="grid xl:grid-cols-[1.18fr_0.82fr]">
-        <div className="border-r border-[#12324d]/10 bg-[#fcfaf5] px-6 py-5 sm:px-8">
+      <section className="px-6 py-6 sm:px-8">
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard label="Active consults" value={activeAppointments.length} />
+          <StatCard label="Open slots" value={openSlots.length} />
+          <StatCard label="Patients" value={new Set(appointments.map((item) => item.patientId)).size} />
+          <MoneyStatCard
+            label="Doctor earnings"
+            value={formatPhp(revenue.availablePayoutPhp)}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_360px]">
+          <section className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                  Next step
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-primary">
+                  {nextAppointment ? "Upcoming consultation" : "Prepare your schedule"}
+                </h2>
+              </div>
+              <Badge variant={nextAppointment ? "secondary" : "outline"}>
+                {nextAppointment ? formatStatus(nextAppointment.status) : "No active session"}
+              </Badge>
+            </div>
+
+            {nextAppointment ? (
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <InfoTile label="Patient" value={nextAppointment.patientName} />
+                <InfoTile
+                  label="Date"
+                  value={formatDate(nextAppointment.scheduledStartAt)}
+                />
+                <InfoTile
+                  label="Time"
+                  value={`${formatTime(nextAppointment.scheduledStartAt)} - ${formatTime(nextAppointment.scheduledEndAt)}`}
+                />
+              </div>
+            ) : (
+              <p className="mt-4 rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
+                Add your weekly availability so patients can book consultations.
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <QuickButton href="/doctor/session" primary>
+                Open session
+              </QuickButton>
+              <QuickButton href="/doctor/schedule">Availability</QuickButton>
+              <QuickButton href="/doctor/schedule/calendar">Calendar</QuickButton>
+            </div>
+          </section>
+
+          <aside className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+              Clinic wallet
+            </p>
+            <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-primary">
+                  <Wallet className="size-5" />
+                </span>
+                <div>
+                  <p className="font-bold text-primary">
+                    {formatPhp(revenue.availablePayoutPhp)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">available after online payment</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-2 text-sm">
+                <WalletRow label="Gross paid" value={formatPhp(revenue.grossPaidPhp)} />
+                <WalletRow label="Click Klinik fee" value={formatPhp(revenue.platformCommissionPhp)} />
+                <WalletRow label="Pending payout" value={formatPhp(revenue.pendingPayoutPhp)} />
+              </div>
+            </div>
+
+            <p className="mt-5 text-xs font-bold tracking-[0.16em] text-primary uppercase">
+              Choose what you need
+            </p>
+            <div className="mt-4 grid gap-2">
+              <FeatureLink
+                href="/doctor/consultations"
+                icon={<CalendarCheck2 className="size-4" />}
+                label="Consultations"
+              />
+              <FeatureLink
+                href="/doctor/records"
+                icon={<BookOpenText className="size-4" />}
+                label="Medical records"
+              />
+              <FeatureLink
+                href="/doctor/schedule"
+                icon={<CalendarDays className="size-4" />}
+                label="Availability"
+              />
+              <FeatureLink
+                href="/doctor/schedule/calendar"
+                icon={<CalendarRange className="size-4" />}
+                label="Calendar"
+              />
+              <FeatureLink
+                href="/doctor/notes"
+                icon={<ClipboardPenLine className="size-4" />}
+                label="Notes & prescriptions"
+              />
+              <FeatureLink
+                href="/doctor/session"
+                icon={<MonitorSmartphone className="size-4" />}
+                label="Consult room"
+              />
+            </div>
+          </aside>
+        </div>
+
+        <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Today&apos;s work
+              <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                Recent bookings
               </p>
-              <p className="mt-1 text-xl font-bold">Schedule and patients</p>
+              <h2 className="mt-2 text-xl font-bold text-primary">Patients to review</h2>
             </div>
-            <Link href="/doctor/schedule" className="text-sm font-semibold text-primary">
-              Manage availability
+            <Link href="/doctor/consultations" className="text-sm font-semibold text-primary">
+              View all
             </Link>
           </div>
 
-          <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_0.95fr]">
-            <div>
-              <SectionTitle
-                title="Upcoming schedule"
-                meta={`${slots.length} saved periods`}
-              />
-              <div className="mt-3 space-y-2">
-                {slots.slice(0, 4).map((slot) => (
-                  <article
-                    key={slot._id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-primary">
-                        {formatDayLong(slot.startAt)}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {formatTime(slot.startAt)} - {formatTime(slot.endAt)}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={slot.status === "available" ? "secondary" : "outline"}
-                    >
-                      {slot.status === "available"
-                        ? "Available"
-                        : slot.status === "unavailable"
-                          ? "Blocked"
-                          : "Booked"}
-                    </Badge>
-                  </article>
-                ))}
-                {slots.length === 0 ? <EmptyStrip copy="No saved schedule yet." /> : null}
-              </div>
-            </div>
+          <div className="mt-4 grid gap-3">
+            {activeAppointments.slice(0, 4).map((appointment) => (
+              <article
+                key={appointment._id}
+                className="grid gap-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4 md:grid-cols-[1fr_auto]"
+              >
+                <div>
+                  <p className="font-semibold text-primary">{appointment.patientName}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {formatDate(appointment.scheduledStartAt)} at{" "}
+                    {formatTime(appointment.scheduledStartAt)}
+                  </p>
+                </div>
+                <Badge variant="outline" className="h-fit">
+                  {formatStatus(appointment.status)}
+                </Badge>
+              </article>
+            ))}
 
-            <div>
-              <SectionTitle title="Recent patients" meta={`${recentPatients.length} active`} />
-              <div className="mt-3 space-y-2">
-                {recentPatients.map((appointment) => (
-                  <Link
-                    key={appointment._id}
-                    href="/doctor/consultations"
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4 py-3 transition-colors hover:bg-primary/[0.03]"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">{appointment.patientName}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {appointment.specializationName}
-                      </p>
-                    </div>
-                    <ChevronRight className="size-4 text-primary/35 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                ))}
-                {recentPatients.length === 0 ? <EmptyStrip copy="No patient bookings yet." /> : null}
+            {activeAppointments.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-6 text-sm text-muted-foreground">
+                No patient bookings yet.
               </div>
-            </div>
+            ) : null}
           </div>
-        </div>
-
-        <aside className="bg-[#fffdf8] px-6 py-5 sm:px-8">
-          <div>
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Quick access
-            </p>
-            <p className="mt-1 text-xl font-bold">Care tools</p>
-          </div>
-
-          <div className="mt-5 space-y-5">
-            <div className="space-y-2">
-              <SectionTitle title="Core modules" />
-              <div className="grid gap-2">
-                <ModuleLink
-                  href="/doctor/consultations"
-                  icon={<CalendarCheck2 className="size-4.5" />}
-                  label="Consultations"
-                  meta="Booked sessions"
-                />
-                <ModuleLink
-                  href="/doctor/records"
-                  icon={<BookOpenText className="size-4.5" />}
-                  label="Medical records"
-                  meta="Patient charts"
-                />
-                <ModuleLink
-                  href="/doctor/schedule"
-                  icon={<CalendarDays className="size-4.5" />}
-                  label="Availability"
-                  meta="Weekly setup"
-                />
-                <ModuleLink
-                  href="/doctor/schedule/calendar"
-                  icon={<CalendarRange className="size-4.5" />}
-                  label="Calendar"
-                  meta="Consultation board"
-                />
-                <ModuleLink
-                  href="/doctor/notes"
-                  icon={<ClipboardPenLine className="size-4.5" />}
-                  label="Notes & Rx"
-                  meta="Consult summary"
-                />
-                <ModuleLink
-                  href="/doctor/session"
-                  icon={<MonitorSmartphone className="size-4.5" />}
-                  label="Consult room"
-                  meta="Virtual session"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <SectionTitle title="Needs attention" meta={`${doctorAlerts.length} live`} />
-              <div className="space-y-2">
-                {doctorAlerts.slice(0, 3).map((alert) => (
-                  <article
-                    key={alert.id}
-                    className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">{alert.title}</p>
-                      <Badge variant="secondary">{alert.kind}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {alert.message}
-                    </p>
-                  </article>
-                ))}
-                {doctorAlerts.length === 0 ? (
-                  <EmptyStrip copy="No new booking, upcoming, or schedule alerts right now." />
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </aside>
+        </section>
       </section>
     </div>
   );
 }
 
-function TopPill({ icon, label }: { icon: ReactNode; label: string }) {
+function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/12 bg-primary-foreground/[0.06] px-3 py-2 text-xs font-semibold">
-      {icon}
-      {label}
-    </span>
-  );
-}
-
-function HeroStat({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note: string;
-}) {
-  return (
-    <div className="bg-primary-foreground/[0.05] px-4 py-4">
-      <p className="text-[11px] font-bold tracking-[0.18em] text-secondary uppercase">
+    <div className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
+      <p className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </p>
-      <p className="mt-3 text-2xl font-bold">{value}</p>
-      <p className="mt-1 text-xs text-primary-foreground/65">{note}</p>
+      <p className="mt-2 text-2xl font-bold text-primary">{value}</p>
     </div>
   );
 }
 
-function ActionButton({
+function MoneyStatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
+      <p className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-bold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function WalletRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold text-primary">{value}</span>
+    </div>
+  );
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3">
+      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-2 text-sm font-bold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function FeatureLink({
   href,
-  tone,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex h-12 items-center gap-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm font-semibold text-primary hover:bg-primary/[0.04]"
+    >
+      <span className="flex size-8 items-center justify-center rounded-lg bg-secondary text-primary">
+        {icon}
+      </span>
+      {label}
+    </Link>
+  );
+}
+
+function QuickButton({
+  href,
+  primary = false,
   children,
 }: {
   href: string;
-  tone: "primary" | "ghost";
-  children: ReactNode;
+  primary?: boolean;
+  children: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
       className={
-        tone === "primary"
-          ? "inline-flex h-11 items-center rounded-xl bg-secondary px-5 text-sm font-semibold text-secondary-foreground"
-          : "inline-flex h-11 items-center rounded-xl border border-primary-foreground/14 bg-primary-foreground/[0.05] px-5 text-sm font-semibold text-primary-foreground"
+        primary
+          ? "inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
+          : "inline-flex h-11 items-center rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-5 text-sm font-semibold text-primary"
       }
     >
       {children}
@@ -373,118 +334,70 @@ function ActionButton({
   );
 }
 
-function SectionTitle({ title, meta }: { title: string; meta?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <p className="text-sm font-semibold text-primary">{title}</p>
-      {meta ? <span className="text-xs text-muted-foreground">{meta}</span> : null}
-    </div>
-  );
-}
-
-function ModuleLink({
-  href,
-  icon,
-  label,
-  meta,
-}: {
-  href: string;
-  icon: ReactNode;
-  label: string;
-  meta: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex items-center justify-between gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4 py-3 transition-colors hover:bg-primary/[0.03]"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-secondary">
-          {icon}
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{label}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>
-        </div>
-      </div>
-      <ChevronRight className="size-4 shrink-0 text-primary/35 transition-transform group-hover:translate-x-0.5" />
-    </Link>
-  );
-}
-
-function EmptyStrip({ copy }: { copy: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-white px-4 py-5 text-sm text-muted-foreground">
-      {copy}
-    </div>
-  );
-}
-
-function formatDay(dateValue: string) {
-  return new Intl.DateTimeFormat("en-PH", { weekday: "short" }).format(
-    new Date(dateValue),
-  );
-}
-
-function formatDayLong(dateValue: string) {
+function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     weekday: "short",
     month: "short",
     day: "numeric",
-  }).format(new Date(dateValue));
+  }).format(new Date(value));
 }
 
-function formatTime(dateValue: string) {
+function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(dateValue));
+  }).format(new Date(value));
 }
 
-function buildDoctorAlerts(
-  appointments: Appointment[],
-  notifications: ScheduleNotification[],
-): DoctorAlert[] {
-  const now = Date.now();
-  const appointmentAlerts = appointments
-    .filter(
-      (appointment) =>
-        appointment.status !== "completed" &&
-        appointment.status !== "cancelled",
-    )
-    .map((appointment) => {
-      const startAt = new Date(appointment.scheduledStartAt).getTime();
-      const hoursUntil = (startAt - now) / (1000 * 60 * 60);
+function formatStatus(value: Appointment["status"]) {
+  return value.replace(/_/g, " ");
+}
 
-      if (hoursUntil <= 24) {
-        return {
-          id: `upcoming-${appointment._id}`,
-          kind: "upcoming" as const,
-          title: "Upcoming consultation",
-          message: `${appointment.patientName} at ${formatTime(appointment.scheduledStartAt)} on ${formatDayLong(appointment.scheduledStartAt)}.`,
-          createdAt: appointment.scheduledStartAt,
-        };
+function getDoctorRevenue(appointments: Appointment[]) {
+  return appointments.reduce(
+    (summary, appointment) => {
+      const payout = getDoctorPayoutPhp(appointment);
+      const commission = getPlatformCommissionPhp(appointment);
+
+      if (appointment.paymentStatus === "paid") {
+        summary.grossPaidPhp += appointment.totalFeePhp ?? 0;
+        summary.platformCommissionPhp += commission;
+        summary.availablePayoutPhp += payout;
+      } else if (appointment.status !== "cancelled") {
+        summary.pendingPayoutPhp += payout;
       }
 
-      return {
-        id: `booked-${appointment._id}`,
-        kind: "booked" as const,
-        title: "New booking received",
-        message: `${appointment.patientName} booked ${appointment.specializationName} for ${formatDayLong(appointment.scheduledStartAt)}.`,
-        createdAt: appointment.createdAt,
-      };
-    });
-
-  const scheduleAlerts = notifications.map((notification) => ({
-    id: `schedule-${notification._id}`,
-    kind: "schedule" as const,
-    title: notification.title,
-    message: notification.message,
-    createdAt: notification.createdAt,
-  }));
-
-  return [...appointmentAlerts, ...scheduleAlerts].sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      return summary;
+    },
+    {
+      availablePayoutPhp: 0,
+      grossPaidPhp: 0,
+      pendingPayoutPhp: 0,
+      platformCommissionPhp: 0,
+    },
   );
+}
+
+function getDoctorPayoutPhp(appointment: Appointment) {
+  if (typeof appointment.doctorPayoutPhp === "number") {
+    return appointment.doctorPayoutPhp;
+  }
+
+  return Math.max((appointment.totalFeePhp ?? 0) - getPlatformCommissionPhp(appointment), 0);
+}
+
+function getPlatformCommissionPhp(appointment: Appointment) {
+  if (typeof appointment.platformCommissionPhp === "number") {
+    return appointment.platformCommissionPhp;
+  }
+
+  return Math.round((appointment.totalFeePhp ?? 0) * 0.15);
+}
+
+function formatPhp(value: number) {
+  return new Intl.NumberFormat("en-PH", {
+    currency: "PHP",
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(value);
 }

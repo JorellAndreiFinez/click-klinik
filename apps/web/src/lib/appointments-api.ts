@@ -11,12 +11,30 @@ export type AppointmentPaymentStatus =
   | "mock_pending"
   | "pending"
   | "paid"
+  | "refunded"
   | "unpaid";
+export type AppointmentPaymentPlan = "pay_now" | "pay_after_consultation";
 
 export type AppointmentAddOn = {
   code: string;
   label: string;
   feePhp: number;
+};
+
+export type AppointmentTriage = {
+  consultMethod: "google_meet" | "physical_visit" | "cellular";
+  chiefComplaint: string;
+  detailedSymptoms: string;
+  onsetDate: string;
+  medications: string[];
+  allergies: string[];
+  healthProblems: string[];
+  smokes: "yes" | "no" | "prefer_not_to_say";
+  drinksAlcohol: "yes" | "no" | "prefer_not_to_say";
+  insurancePartnersConsent: boolean;
+  laboratoryPartnersConsent: boolean;
+  pharmacyPartnersConsent: boolean;
+  emergencyDisclosureConsent: boolean;
 };
 
 export type Appointment = {
@@ -31,6 +49,7 @@ export type Appointment = {
   doctorLocation?: string;
   consultationCode: string;
   consultationLabel: string;
+  triage?: AppointmentTriage;
   addOns: AppointmentAddOn[];
   baseFeePhp: number;
   addOnsTotalPhp: number;
@@ -43,11 +62,21 @@ export type Appointment = {
   googleCalendarEventId?: string;
   googleMeetLink?: string;
   googleCalendarHtmlLink?: string;
-  paymentProvider: "pay_later" | "paymongo" | "xendit";
+  paymentProvider: "xendit";
+  paymentPlan: AppointmentPaymentPlan;
   paymentStatus: AppointmentPaymentStatus;
   paymentReferenceId?: string;
   paymentProviderPaymentId?: string;
   paymentCheckoutUrl?: string;
+  paymentDueAt?: string;
+  payoutId?: string;
+  platformCommissionRate?: number;
+  platformCommissionPhp?: number;
+  doctorPayoutPhp?: number;
+  doctorPayoutStatus?: "pending_payment" | "available" | "paid_out";
+  refundStatus?: "none" | "requested" | "approved" | "rejected" | "refunded";
+  refundRequestedAt?: string;
+  refundReason?: string;
   createdAt: string;
 };
 
@@ -60,7 +89,9 @@ export async function createAppointment(
     scheduledEndAt: string;
     consultationCode: string;
     addOnCodes: string[];
-    paymentProvider: "pay_later" | "paymongo" | "xendit";
+    paymentProvider: "xendit";
+    paymentPlan?: AppointmentPaymentPlan;
+    triage: AppointmentTriage;
   },
 ): Promise<Appointment> {
   return appointmentRequest<Appointment>(user, "/appointments", {
@@ -88,6 +119,31 @@ export async function updateAppointmentStatus(
   });
 }
 
+export async function requestAppointmentRefund(
+  user: User,
+  id: string,
+  reason: string,
+): Promise<Appointment> {
+  try {
+    return await appointmentRequest<Appointment>(user, `/appointments/${id}/refund-request`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      !error.message.includes("Cannot POST")
+    ) {
+      throw error;
+    }
+
+    return appointmentRequest<Appointment>(user, `/appointments/${id}/refund`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+}
+
 export async function joinAppointment(
   user: User,
   id: string,
@@ -99,6 +155,16 @@ export async function joinAppointment(
       method: "POST",
     },
   );
+}
+
+export async function refreshAppointmentPaymentStatus(
+  user: User,
+  id: string,
+  _referenceId?: string,
+): Promise<Appointment> {
+  return appointmentRequest<Appointment>(user, `/appointments/${id}/refresh-payment`, {
+    method: "POST",
+  });
 }
 
 async function appointmentRequest<T>(

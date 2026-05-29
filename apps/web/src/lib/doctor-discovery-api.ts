@@ -14,6 +14,19 @@ export type DiscoverDoctor = {
 
 export type PublicDoctorProfile = DiscoverDoctor;
 
+export type DoctorRecommendation = {
+  specializationCode: string;
+  specializationName: string;
+  relatedSpecializations: Array<{
+    code: string;
+    name: string;
+  }>;
+  reasoning: string;
+  symptomKeywords: string[];
+  disclaimer: string;
+  doctors: DiscoverDoctor[];
+};
+
 export type PublicDoctorAvailabilitySlot = {
   _id: string;
   startAt: string;
@@ -113,6 +126,40 @@ export async function getPublicDoctorAvailability(
   }
 
   return (await response.json()) as PublicDoctorAvailabilitySlot[];
+}
+
+export async function recommendDoctors(input: {
+  symptom: string;
+  location?: string;
+  query?: string;
+}): Promise<DoctorRecommendation> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) {
+    throw new Error("The API URL is not configured.");
+  }
+
+  const response = await fetch(`${apiUrl}/doctors/recommendation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const result: unknown = await response.json().catch(() => null);
+    const message =
+      typeof result === "object" &&
+      result !== null &&
+      "message" in result &&
+      typeof result.message === "string"
+        ? result.message
+        : "Unable to recommend doctors for this symptom.";
+    throw new Error(message);
+  }
+
+  return (await response.json()) as DoctorRecommendation;
 }
 
 export async function getPublicDoctorProfile(

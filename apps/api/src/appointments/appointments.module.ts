@@ -9,6 +9,8 @@ import { ScheduleSlot, ScheduleSlotSchema } from '../schedules/schemas/schedule.
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
 import { Appointment, AppointmentSchema } from './schemas/appointment.schema';
+import { Payout, PayoutSchema } from './schemas/payout.schema';
+import { XenditWebhookController } from './xendit-webhook.controller';
 
 @Module({
   imports: [
@@ -17,12 +19,13 @@ import { Appointment, AppointmentSchema } from './schemas/appointment.schema';
       { name: Patient.name, schema: PatientSchema },
       { name: Doctor.name, schema: DoctorSchema },
       { name: ScheduleSlot.name, schema: ScheduleSlotSchema },
+      { name: Payout.name, schema: PayoutSchema },
     ]),
     AuthModule,
     CalendarModule,
     PaymentsModule,
   ],
-  controllers: [AppointmentsController],
+  controllers: [AppointmentsController, XenditWebhookController],
   providers: [AppointmentsService],
   exports: [AppointmentsService],
 })

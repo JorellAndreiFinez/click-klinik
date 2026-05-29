@@ -10,11 +10,25 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
 import { Model } from 'mongoose';
 import { Patient } from '../patients/schemas/patient.schema';
 import { CreateDoctorApplicationDto } from './dto/create-doctor-application.dto';
+import { DoctorRecommendationDto } from './dto/doctor-recommendation.dto';
 import { ReviewDoctorApplicationDto } from './dto/review-doctor-application.dto';
 import { Doctor } from './schemas/doctor.schema';
 import { SPECIALIZATIONS } from './specializations';
 
 import { SearchDoctorsDto } from './dto/search-doctors.dto';
+
+type DoctorRecommendationResult = {
+  specializationCode: string;
+  specializationName: string;
+  relatedSpecializations: Array<{
+    code: string;
+    name: string;
+  }>;
+  reasoning: string;
+  symptomKeywords: string[];
+  disclaimer: string;
+  doctors: Doctor[];
+};
 
 @Injectable()
 export class DoctorsService {
@@ -184,7 +198,7 @@ export class DoctorsService {
     ];
 
     if (specializationCode) {
-      andConditions.push({ specializationCode });
+      andConditions.push(getSpecializationMatchCondition([specializationCode]));
     }
 
     if (query) {
@@ -200,7 +214,7 @@ export class DoctorsService {
       });
     }
 
-    if (symptom) {
+    if (symptom && !specializationCode) {
       andConditions.push({
         $or: [
           {
@@ -246,6 +260,27 @@ export class DoctorsService {
       })
       .lean()
       .exec();
+  }
+
+  async recommendDoctors(
+    dto: DoctorRecommendationDto,
+  ): Promise<DoctorRecommendationResult> {
+    const recommendation = await this.getAiDoctorRecommendation(dto);
+    const doctors = await this.discoverDoctorsForSpecializations(
+      recommendation.relatedSpecializations.map((item) => item.code),
+      {
+        query: dto.query,
+        location: dto.location,
+        symptom: [dto.symptom, ...recommendation.symptomKeywords].join(' '),
+      },
+    );
+
+    return {
+      ...recommendation,
+      doctors,
+      disclaimer:
+        'Guidance only. This AI recommendation does not replace professional medical advice or emergency care.',
+    };
   }
 
   async getPublicDoctorProfile(id: string): Promise<Doctor> {
@@ -337,6 +372,320 @@ export class DoctorsService {
       );
     }
   }
+
+  private async getAiDoctorRecommendation(
+    dto: DoctorRecommendationDto,
+  ): Promise<Omit<DoctorRecommendationResult, 'doctors' | 'disclaimer'>> {
+    const specializationEntries = Object.entries(SPECIALIZATIONS);
+    const fallback = recommendFromKeywords(dto.symptom);
+    const prompt = [
+      'You are helping a Philippine telehealth app route patients to the right doctor specialization.',
+      'Return strict JSON only with keys: specializationCode, relatedSpecializationCodes, reasoning, symptomKeywords.',
+      `Choose only from these specializations: ${specializationEntries.map(([code, name]) => `${code}: ${name}`).join('; ')}.`,
+      `Patient symptoms/medical need: ${dto.symptom}`,
+      dto.location ? `Patient location: ${dto.location}` : '',
+      dto.query ? `Extra search text: ${dto.query}` : '',
+      `A symptom may fit more than one doctor type. Put the best main match in specializationCode, then up to 3 relevant alternatives in relatedSpecializationCodes.`,
+      `If uncertain, choose ${fallback.code}. Keep reasoning under 25 words. symptomKeywords should be a short array of useful search phrases.`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    for (const apiKey of getGeminiApiKeys()) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: prompt }],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+              },
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const payload = (await response.json()) as GeminiResponse;
+        const text =
+          payload.candidates?.[0]?.content?.parts
+            ?.map((part) => part.text ?? '')
+            .join('')
+            .trim() ?? '';
+
+        if (!text) {
+          continue;
+        }
+
+        const parsed = safeParseGeminiRecommendation(text);
+        const specializationCode = sanitizeSpecializationCode(
+          parsed?.specializationCode,
+          fallback.code,
+        );
+        const relatedCodes = normalizeSpecializationCodes(
+          parsed?.relatedSpecializationCodes,
+          fallback.relatedSpecializations.map((item) => item.code),
+          specializationCode,
+        );
+
+        return {
+          specializationCode,
+          specializationName: SPECIALIZATIONS[specializationCode],
+          relatedSpecializations: relatedCodes.map((code) => ({
+            code,
+            name: SPECIALIZATIONS[code],
+          })),
+          reasoning:
+            parsed?.reasoning?.trim() ||
+            `Matched to ${SPECIALIZATIONS[specializationCode]} based on the described symptoms.`,
+          symptomKeywords:
+            parsed?.symptomKeywords?.filter(Boolean).slice(0, 5) ?? [],
+        };
+      } catch {
+        continue;
+      }
+    }
+
+    return {
+      specializationCode: fallback.code,
+      specializationName: fallback.name,
+      relatedSpecializations: fallback.relatedSpecializations,
+      reasoning: fallback.reasoning,
+      symptomKeywords: fallback.keywords,
+    };
+  }
+
+  private async discoverDoctorsForSpecializations(
+    specializationCodes: string[],
+    filters: {
+      query?: string;
+      symptom?: string;
+      location?: string;
+    },
+  ): Promise<Doctor[]> {
+    const query = filters.query?.trim();
+    const symptom = filters.symptom?.trim();
+    const location = filters.location?.trim();
+
+    const andConditions: Record<string, unknown>[] = [
+      { applicationStatus: 'approved' },
+      { displayOnPublicWebsite: true },
+      getSpecializationMatchCondition(specializationCodes),
+    ];
+
+    if (query) {
+      andConditions.push({
+        $or: [
+          { firstName: { $regex: query, $options: 'i' } },
+          { lastName: { $regex: query, $options: 'i' } },
+          { specializationName: { $regex: query, $options: 'i' } },
+          { clinicOrHospital: { $regex: query, $options: 'i' } },
+          { location: { $regex: query, $options: 'i' } },
+          { bio: { $regex: query, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (symptom && specializationCodes.length === 0) {
+      andConditions.push({
+        $or: [
+          {
+            searchableSymptoms: {
+              $elemMatch: { $regex: symptom, $options: 'i' },
+            },
+          },
+          { specializationName: { $regex: symptom, $options: 'i' } },
+          { bio: { $regex: symptom, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (location) {
+      andConditions.push({
+        $or: [
+          { location: { $regex: location, $options: 'i' } },
+          { clinicOrHospital: { $regex: location, $options: 'i' } },
+          { bio: { $regex: location, $options: 'i' } },
+        ],
+      });
+    }
+
+    return this.doctorModel
+      .find({ $and: andConditions })
+      .select([
+        'firstName',
+        'lastName',
+        'suffix',
+        'specializationCode',
+        'specializationName',
+        'clinicOrHospital',
+        'location',
+        'yearsOfExperience',
+        'bio',
+        'displayOnPublicWebsite',
+      ])
+      .sort({
+        yearsOfExperience: -1,
+        lastName: 1,
+        firstName: 1,
+      })
+      .lean()
+      .exec();
+  }
+}
+
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+  }>;
+};
+
+function safeParseGeminiRecommendation(
+  value: string,
+):
+  | {
+      specializationCode?: string;
+      relatedSpecializationCodes?: string[];
+      reasoning?: string;
+      symptomKeywords?: string[];
+    }
+  | null {
+  try {
+    return JSON.parse(value) as {
+      specializationCode?: string;
+      relatedSpecializationCodes?: string[];
+      reasoning?: string;
+      symptomKeywords?: string[];
+    };
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeSpecializationCode(
+  value: string | undefined,
+  fallbackCode: string,
+): string {
+  if (!value) {
+    return fallbackCode;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  return normalized in SPECIALIZATIONS ? normalized : fallbackCode;
+}
+
+function getSpecializationMatchCondition(
+  specializationCodes: string[],
+): Record<string, unknown> {
+  const normalizedCodes = specializationCodes
+    .map((code) => code.trim().toUpperCase())
+    .filter((code) => code in SPECIALIZATIONS);
+  const specializationNames = normalizedCodes.map((code) => SPECIALIZATIONS[code]);
+
+  return {
+    $or: [
+      { specializationCode: { $in: normalizedCodes } },
+      ...specializationNames.map((name) => ({
+        specializationName: { $regex: `^${escapeRegex(name)}$`, $options: 'i' },
+      })),
+    ],
+  };
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getGeminiApiKeys(): string[] {
+  const envList = [
+    process.env.GEMINI_API_KEYS,
+    process.env.GEMINI_API_KEY,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => value!.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(envList));
+}
+
+function recommendFromKeywords(input: string): {
+  code: string;
+  name: string;
+  relatedSpecializations: Array<{ code: string; name: string }>;
+  reasoning: string;
+  keywords: string[];
+} {
+  const symptom = input.toLowerCase();
+  const rules: Array<{
+    code: string;
+    keywords: string[];
+    relatedCodes?: string[];
+  }> = [
+    { code: 'CARD', keywords: ['chest pain', 'palpitations', 'heart', 'bp'], relatedCodes: ['IM', 'GPHY'] },
+    { code: 'PULMO', keywords: ['cough', 'asthma', 'shortness of breath'], relatedCodes: ['IM', 'GPHY'] },
+    { code: 'PSYCH', keywords: ['anxiety', 'depression', 'panic', 'suicidal'], relatedCodes: ['PSYCHO', 'GPHY'] },
+    { code: 'PSYCHO', keywords: ['stress', 'counseling', 'therapy'], relatedCodes: ['PSYCH', 'GPHY'] },
+    { code: 'DERM', keywords: ['rash', 'itch', 'acne', 'skin'], relatedCodes: ['GPHY'] },
+    { code: 'OBGYN', keywords: ['pregnancy', 'period', 'pelvic', 'vaginal'], relatedCodes: ['GPHY'] },
+    { code: 'PEDIA', keywords: ['child', 'baby', 'infant', 'fever child'], relatedCodes: ['GPHY'] },
+    { code: 'ENT', keywords: ['ear', 'nose', 'throat', 'sinus'], relatedCodes: ['GPHY'] },
+    { code: 'NEURO', keywords: ['headache', 'seizure', 'migraine', 'numbness'], relatedCodes: ['IM', 'GPHY'] },
+    { code: 'URO', keywords: ['urine', 'kidney', 'uti', 'prostate'], relatedCodes: ['IM', 'GPHY'] },
+    { code: 'OPTH', keywords: ['eye', 'vision', 'blurred vision'], relatedCodes: ['GPHY'] },
+    { code: 'REHAB', keywords: ['injury', 'stroke recovery', 'mobility'], relatedCodes: ['PHYTHERA', 'GPHY'] },
+    { code: 'IM', keywords: ['diabetes', 'hypertension', 'cholesterol', 'fatigue', 'adult checkup'], relatedCodes: ['GPHY', 'MEDSPEC'] },
+  ];
+
+  const matchedRule = rules.find((rule) =>
+    rule.keywords.some((keyword) => symptom.includes(keyword)),
+  );
+
+  const code = matchedRule?.code ?? 'GPHY';
+  const relatedCodes = normalizeSpecializationCodes(
+    matchedRule?.relatedCodes,
+    ['GPHY'],
+    code,
+  );
+  return {
+    code,
+    name: SPECIALIZATIONS[code],
+    relatedSpecializations: relatedCodes.map((item) => ({
+      code: item,
+      name: SPECIALIZATIONS[item],
+    })),
+    reasoning: `Matched to ${SPECIALIZATIONS[code]} with related alternatives using symptom keywords while AI recommendation is unavailable.`,
+    keywords: matchedRule?.keywords.slice(0, 3) ?? [],
+  };
+}
+
+function normalizeSpecializationCodes(
+  input: string[] | undefined,
+  fallbackCodes: string[],
+  primaryCode: string,
+): string[] {
+  const values = (input && input.length > 0 ? input : fallbackCodes)
+    .map((value) => value.trim().toUpperCase())
+    .filter((value) => value in SPECIALIZATIONS);
+
+  const merged = [primaryCode, ...values];
+  return Array.from(new Set(merged)).slice(0, 4);
 }
 
 function isMongoDuplicateKeyError(error: unknown): boolean {

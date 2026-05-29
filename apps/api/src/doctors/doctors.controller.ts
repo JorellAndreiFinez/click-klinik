@@ -14,6 +14,7 @@ import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
 import { CheckDoctorMobileNumberDto } from './dto/check-doctor-mobile-number.dto';
 import { CreateDoctorApplicationDto } from './dto/create-doctor-application.dto';
+import { DoctorRecommendationDto } from './dto/doctor-recommendation.dto';
 import { ReviewDoctorApplicationDto } from './dto/review-doctor-application.dto';
 import { DoctorsService } from './doctors.service';
 import { Doctor } from './schemas/doctor.schema';
@@ -38,6 +39,11 @@ export class DoctorsController {
   @Get('discover')
   discoverDoctors(@Query() filters: SearchDoctorsDto) {
     return this.doctorsService.discoverDoctors(filters);
+  }
+
+  @Post('recommendation')
+  recommendDoctors(@Body() dto: DoctorRecommendationDto) {
+    return this.doctorsService.recommendDoctors(dto);
   }
 
   @Get('public/:id')

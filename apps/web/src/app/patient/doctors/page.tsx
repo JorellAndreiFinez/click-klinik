@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   CalendarDays,
@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import {
   discoverDoctors,
   getPublicDoctorAvailability,
+  recommendDoctors,
+  type DoctorRecommendation,
   type DiscoverDoctor,
   type PublicDoctorAvailabilitySlot,
 } from "@/lib/doctor-discovery-api";
@@ -31,21 +33,44 @@ import { getMyPatientProfile, type PatientProfile } from "@/lib/patient-api";
 
 const specializationOptions = [
   { code: "", label: "All specializations" },
+  { code: "MEDSPEC", label: "Medical Specialist" },
   { code: "GPHY", label: "General Physician" },
   { code: "GP", label: "General Practitioner" },
   { code: "CARD", label: "Cardiologist" },
+  { code: "CARDADULT", label: "Adult Cardiologist" },
   { code: "IM", label: "Internal Medicine" },
+  { code: "HEMA", label: "Hematology" },
+  { code: "IMID", label: "Infectious Disease" },
+  { code: "PULMO", label: "Pulmonology" },
   { code: "PEDIA", label: "Pediatrics" },
   { code: "OBGYN", label: "Obstetrician-Gynecologist" },
   { code: "PSYCH", label: "Psychiatry" },
   { code: "PSYCHO", label: "Psychology" },
   { code: "ENT", label: "ENT" },
   { code: "DERM", label: "Dermatology" },
+  { code: "IMMONCO", label: "Immunodermatology and Oncodermatology" },
+  { code: "GS", label: "General Surgery" },
+  { code: "NEURO", label: "Neurology" },
+  { code: "OPTH", label: "Ophthalmology" },
+  { code: "PHYTHERA", label: "Physical Therapist" },
+  { code: "REHAB", label: "Rehabilitation Medicine" },
+  { code: "URO", label: "Urology" },
 ] as const;
 
 export default function PatientDoctorsPage() {
+  return (
+    <Suspense fallback={<DoctorsPageFallback />}>
+      <PatientDoctorsPageContent />
+    </Suspense>
+  );
+}
+
+function PatientDoctorsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const firebaseConfigured = isFirebaseConfigured();
+  const initialSymptom = searchParams.get("symptom") ?? "";
+  const initialLocation = searchParams.get("location") ?? "";
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [message, setMessage] = useState(
     firebaseConfigured
@@ -53,12 +78,15 @@ export default function PatientDoctorsPage() {
       : "Authentication is not configured yet.",
   );
   const [query, setQuery] = useState("");
-  const [symptom, setSymptom] = useState("");
-  const [patientLocation, setPatientLocation] = useState("");
+  const [symptom, setSymptom] = useState(initialSymptom);
+  const [patientLocation, setPatientLocation] = useState(initialLocation);
   const [specializationCode, setSpecializationCode] = useState("");
   const [doctors, setDoctors] = useState<DiscoverDoctor[]>([]);
   const [loadingDoctors, setLoadingDoctors] = useState(true);
   const [doctorError, setDoctorError] = useState<string | null>(null);
+  const [recommendation, setRecommendation] =
+    useState<DoctorRecommendation | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [expandedDoctorId, setExpandedDoctorId] = useState<string | null>(null);
   const [availabilityByDoctor, setAvailabilityByDoctor] = useState<
     Record<string, PublicDoctorAvailabilitySlot[]>
@@ -104,6 +132,21 @@ export default function PatientDoctorsPage() {
           return;
         }
 
+        if (result.length === 0 && specializationCode && symptom.trim()) {
+          return discoverDoctors({
+            query,
+            specializationCode,
+            location: patientLocation,
+          }).then((fallbackResult) => {
+            if (!active) {
+              return;
+            }
+
+            setDoctors(fallbackResult);
+            setDoctorError(null);
+          });
+        }
+
         setDoctors(result);
         setDoctorError(null);
       })
@@ -128,6 +171,59 @@ export default function PatientDoctorsPage() {
       active = false;
     };
   }, [patientLocation, query, specializationCode, symptom]);
+
+  async function handleAiRecommendation() {
+    if (!symptom.trim()) {
+      setDoctorError("Describe the symptom or medical need first.");
+      return;
+    }
+
+    setAiLoading(true);
+    setDoctorError(null);
+
+    try {
+      const result = await recommendDoctors({
+        symptom,
+        location: patientLocation,
+        query,
+      });
+      const recommendedDoctors =
+        result.doctors.length > 0
+          ? result.doctors
+          : await discoverDoctorsForRecommendation(result, {
+              query,
+              location: patientLocation,
+            });
+
+      setRecommendation(result);
+      setSpecializationCode(result.specializationCode);
+      setDoctors(recommendedDoctors);
+      setLoadingDoctors(false);
+    } catch (error: unknown) {
+      const fallback = buildLocalRecommendation(symptom);
+      const fallbackDoctors = await discoverDoctors({
+        query,
+        location: patientLocation,
+        symptom,
+        specializationCode: fallback.specializationCode,
+      }).catch(() => []);
+
+      setRecommendation(fallback);
+      setSpecializationCode(fallback.specializationCode);
+      setDoctors(fallbackDoctors);
+      setLoadingDoctors(false);
+      setDoctorError(
+        error instanceof Error &&
+          error.message.includes("Cannot POST /doctors/recommendation")
+          ? "AI recommendation route is not loaded in the API yet. Using built-in symptom matching for now."
+          : error instanceof Error
+            ? error.message
+            : "Unable to recommend doctors for this symptom.",
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   async function handleSignOut() {
     if (!firebaseConfigured) {
@@ -229,7 +325,7 @@ export default function PatientDoctorsPage() {
   if (!profile) {
     return (
       <main className="clinic-grid flex min-h-screen items-center justify-center px-5">
-        <div className="max-w-md rounded-3xl border border-border bg-card p-8 text-center">
+        <div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center">
           <HeartPulse className="mx-auto size-10 text-primary" />
           <p className="mt-5 text-sm text-muted-foreground">{message}</p>
           {message.includes("incomplete") ? (
@@ -247,32 +343,18 @@ export default function PatientDoctorsPage() {
       patientName={`${profile.firstName} ${profile.lastName}`}
       onSignOut={handleSignOut}
     >
-      <div className="w-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)]">
-        <section className="border-b border-[#12324d]/10 bg-[linear-gradient(135deg,#0d3553_0%,#123f63_58%,#15496f_100%)] text-primary-foreground">
-          <div className="grid xl:grid-cols-[1.08fr_0.92fr]">
-            <div className="px-6 py-7 sm:px-8">
-              <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
-                Doctor discovery
-              </p>
-              <h1 className="mt-3 text-3xl font-bold">
-                Find the right doctor for your health concern.
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-primary-foreground/68">
-                Browse approved doctors, explore by symptoms or medical needs,
-                and review specialization before booking.
-              </p>
-            </div>
-            <div className="border-t border-primary-foreground/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l xl:border-primary-foreground/10">
-              <p className="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-secondary uppercase">
-                <Sparkles className="size-4" />
-                Search help
-              </p>
-              <div className="mt-4 space-y-2 text-sm text-primary-foreground/68">
-                <p>Search by doctor name or specialization.</p>
-                <p>Use symptoms like chest pain, cough, or anxiety.</p>
-                <p>Filter by specialization to narrow the list fast.</p>
-              </div>
-            </div>
+      <div className="w-full bg-[#f7f2e8]">
+        <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
+          <div className="max-w-3xl">
+            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+              Find care
+            </p>
+            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+              Search for a doctor
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Choose a specialization or describe your concern. We will show approved doctors you can book online.
+            </p>
           </div>
         </section>
 
@@ -288,7 +370,10 @@ export default function PatientDoctorsPage() {
                   <Crosshair className="size-4 text-muted-foreground" />
                   <input
                     value={patientLocation}
-                    onChange={(event) => setPatientLocation(event.target.value)}
+                    onChange={(event) => {
+                      setRecommendation(null);
+                      setPatientLocation(event.target.value);
+                    }}
                     placeholder="e.g. Quezon City, Manila, Pasig"
                     className="w-full bg-transparent text-sm outline-none"
                   />
@@ -303,6 +388,7 @@ export default function PatientDoctorsPage() {
                     value={query}
                     onChange={(event) => {
                       setDoctorError(null);
+                      setRecommendation(null);
                       setLoadingDoctors(true);
                       setQuery(event.target.value);
                     }}
@@ -314,17 +400,29 @@ export default function PatientDoctorsPage() {
 
               <label className="grid gap-2">
                 <span className="text-sm font-semibold">Medical need / symptom</span>
-                <input
+                <textarea
                   value={symptom}
                   onChange={(event) => {
                     setDoctorError(null);
+                    setRecommendation(null);
                     setLoadingDoctors(true);
                     setSymptom(event.target.value);
                   }}
-                  placeholder="e.g. chest pain, cough, anxiety"
-                  className="h-11 rounded-xl border border-[#12324d]/10 bg-white px-4 text-sm outline-none"
+                  placeholder="Describe the symptoms, health concern, or specialist you think you need."
+                  rows={4}
+                  className="min-h-28 rounded-xl border border-[#12324d]/10 bg-white px-4 py-3 text-sm outline-none"
                 />
               </label>
+
+              <Button
+                type="button"
+                className="h-11 rounded-xl"
+                onClick={() => void handleAiRecommendation()}
+                disabled={aiLoading}
+              >
+                <Sparkles className="size-4" />
+                {aiLoading ? "Matching doctors..." : "Ask AI to match doctors"}
+              </Button>
 
               <label className="grid gap-2">
                 <span className="text-sm font-semibold">Specialization</span>
@@ -332,6 +430,7 @@ export default function PatientDoctorsPage() {
                   value={specializationCode}
                   onChange={(event) => {
                     setDoctorError(null);
+                    setRecommendation(null);
                     setLoadingDoctors(true);
                     setSpecializationCode(event.target.value);
                   }}
@@ -351,6 +450,7 @@ export default function PatientDoctorsPage() {
                 className="h-11 rounded-xl"
                 onClick={() => {
                   setLoadingDoctors(true);
+                  setRecommendation(null);
                   setPatientLocation("");
                   setQuery("");
                   setSymptom("");
@@ -364,15 +464,15 @@ export default function PatientDoctorsPage() {
 
           <div className="bg-[#fffdf8] px-6 py-5 sm:px-8">
             {matchedDoctors.length > 0 ? (
-              <div className="mb-5 rounded-2xl border border-[#12324d]/10 bg-[#f9f5eb] p-4">
+              <div className="mb-5 rounded-xl border border-[#12324d]/10 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
                       Best matched for you
                     </p>
-                    <p className="mt-1 text-base font-bold">
-                      Relevant doctors near {patientLocation.trim()}
-                    </p>
+                <p className="mt-1 text-base font-bold">
+                  Relevant doctors near {patientLocation.trim()}
+                </p>
                   </div>
                   <Badge variant="secondary">{matchedDoctors.length} matched</Badge>
                 </div>
@@ -381,7 +481,7 @@ export default function PatientDoctorsPage() {
                   {matchedDoctors.map((doctorItem) => (
                     <article
                       key={`matched-${doctorItem._id}`}
-                      className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
+                      className="rounded-lg border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -411,9 +511,89 @@ export default function PatientDoctorsPage() {
                   Results
                 </p>
                 <p className="mt-1 text-xl font-bold">{recommendedLabel}</p>
+                {recommendation ? (
+                  <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                    AI matched this concern to{" "}
+                    <span className="font-semibold text-primary">
+                      {recommendation.specializationName}
+                    </span>
+                    {recommendation.relatedSpecializations.length > 1 ? (
+                      <>
+                        {" "}with related options like{" "}
+                        <span className="font-semibold text-primary">
+                          {recommendation.relatedSpecializations
+                            .slice(1)
+                            .map((item) => item.name)
+                            .join(", ")}
+                        </span>
+                      </>
+                    ) : null}
+                    . {recommendation.reasoning}
+                  </p>
+                ) : null}
               </div>
               <Badge variant="outline">{rankedDoctors.length} doctors</Badge>
             </div>
+
+            {recommendation ? (
+              <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                      AI recommendation
+                    </p>
+                    <p className="mt-1 font-semibold">
+                      {recommendation.specializationName}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">
+                    {recommendation.specializationCode}
+                  </Badge>
+                </div>
+                {recommendation.relatedSpecializations.length > 1 ? (
+                  <div className="mt-3">
+                    <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+                      Related doctor types
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {recommendation.relatedSpecializations.map((item) => (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={() => {
+                            setDoctorError(null);
+                            setLoadingDoctors(true);
+                            setSpecializationCode(item.code);
+                          }}
+                          className={`rounded-full border px-3 py-1 text-xs ${
+                            specializationCode === item.code
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-[#12324d]/10 bg-white text-muted-foreground"
+                          }`}
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {recommendation.symptomKeywords.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {recommendation.symptomKeywords.map((keyword) => (
+                      <span
+                        key={keyword}
+                        className="rounded-full border border-[#12324d]/10 bg-white px-3 py-1 text-xs text-muted-foreground"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {recommendation.disclaimer}
+                </p>
+              </div>
+            ) : null}
 
             {doctorError ? (
               <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-4 text-sm text-destructive">
@@ -500,7 +680,7 @@ export default function PatientDoctorsPage() {
                     </div>
 
                     {expandedDoctorId === doctorItem._id ? (
-                      <div className="mt-5 rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] p-4">
+                      <div className="mt-5 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
@@ -569,6 +749,19 @@ export default function PatientDoctorsPage() {
         </section>
       </div>
     </PatientWorkspaceShell>
+  );
+}
+
+function DoctorsPageFallback() {
+  return (
+    <main className="clinic-grid flex min-h-screen items-center justify-center px-5">
+      <div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center">
+        <HeartPulse className="mx-auto size-10 text-primary" />
+        <p className="mt-5 text-sm text-muted-foreground">
+          Loading doctor discovery...
+        </p>
+      </div>
+    </main>
   );
 }
 
@@ -653,4 +846,88 @@ function formatAvailabilityTimeRange(startAt: string, endAt: string): string {
     hour: "numeric",
     minute: "2-digit",
   })}`;
+}
+
+async function discoverDoctorsForRecommendation(
+  recommendation: DoctorRecommendation,
+  filters: {
+    query?: string;
+    location?: string;
+  },
+): Promise<DiscoverDoctor[]> {
+  const specializationCodes = Array.from(
+    new Set([
+      recommendation.specializationCode,
+      ...recommendation.relatedSpecializations.map((item) => item.code),
+    ]),
+  );
+  const doctorGroups = await Promise.all(
+    specializationCodes.map((code) =>
+      discoverDoctors({
+        query: filters.query,
+        location: filters.location,
+        specializationCode: code,
+      }).catch(() => []),
+    ),
+  );
+  const doctorsById = new Map<string, DiscoverDoctor>();
+
+  doctorGroups.flat().forEach((doctor) => {
+    doctorsById.set(doctor._id, doctor);
+  });
+
+  return Array.from(doctorsById.values());
+}
+
+function buildLocalRecommendation(symptom: string): DoctorRecommendation {
+  const input = symptom.toLowerCase();
+  const rules: Array<{
+    specializationCode: string;
+    relatedSpecializations?: string[];
+    keywords: string[];
+  }> = [
+    { specializationCode: "CARD", relatedSpecializations: ["IM", "GPHY"], keywords: ["chest pain", "palpitations", "heart", "high blood"] },
+    { specializationCode: "PULMO", relatedSpecializations: ["IM", "GPHY"], keywords: ["cough", "asthma", "shortness of breath", "wheezing"] },
+    { specializationCode: "PSYCH", relatedSpecializations: ["PSYCHO", "GPHY"], keywords: ["anxiety", "depression", "panic", "insomnia", "suicidal"] },
+    { specializationCode: "PSYCHO", relatedSpecializations: ["PSYCH", "GPHY"], keywords: ["stress", "counseling", "therapy", "behavior"] },
+    { specializationCode: "DERM", relatedSpecializations: ["GPHY"], keywords: ["rash", "itch", "skin", "acne", "eczema"] },
+    { specializationCode: "OBGYN", relatedSpecializations: ["GPHY"], keywords: ["pregnancy", "period", "pelvic", "menstrual", "vaginal"] },
+    { specializationCode: "PEDIA", relatedSpecializations: ["GPHY"], keywords: ["child", "baby", "infant", "newborn", "pediatric"] },
+    { specializationCode: "ENT", relatedSpecializations: ["GPHY"], keywords: ["ear", "nose", "throat", "sinus", "tonsil"] },
+    { specializationCode: "NEURO", relatedSpecializations: ["IM", "GPHY"], keywords: ["migraine", "seizure", "numbness", "headache", "vertigo"] },
+    { specializationCode: "URO", relatedSpecializations: ["IM", "GPHY"], keywords: ["urine", "uti", "kidney", "prostate", "bladder"] },
+    { specializationCode: "OPTH", relatedSpecializations: ["GPHY"], keywords: ["eye", "vision", "blurred vision", "red eye"] },
+    { specializationCode: "REHAB", relatedSpecializations: ["PHYTHERA", "GPHY"], keywords: ["injury", "rehab", "mobility", "stroke recovery"] },
+    { specializationCode: "PHYTHERA", relatedSpecializations: ["REHAB", "GPHY"], keywords: ["back pain", "joint pain", "physical therapy", "sprain"] },
+    { specializationCode: "IM", relatedSpecializations: ["GPHY", "MEDSPEC"], keywords: ["diabetes", "hypertension", "cholesterol", "fatigue", "adult checkup"] },
+  ];
+
+  const matchedRule = rules.find((rule) =>
+    rule.keywords.some((keyword) => input.includes(keyword)),
+  );
+  const specializationCode = matchedRule?.specializationCode ?? "GPHY";
+  const specializationName =
+    specializationOptions.find((item) => item.code === specializationCode)?.label ??
+    "General Physician";
+  const relatedCodes = Array.from(
+    new Set([
+      specializationCode,
+      ...(matchedRule?.relatedSpecializations ?? ["GPHY"]),
+    ]),
+  );
+
+  return {
+    specializationCode,
+    specializationName,
+    relatedSpecializations: relatedCodes.map((code) => ({
+      code,
+      name:
+        specializationOptions.find((item) => item.code === code)?.label ?? code,
+    })),
+    reasoning: `Matched to ${specializationName} with related alternatives using built-in symptom rules while AI routing is unavailable.`,
+    symptomKeywords: matchedRule?.keywords.slice(0, 4) ?? [],
+    disclaimer:
+      "Guidance only. This recommendation does not replace professional medical advice or emergency care.",
+    doctors: [],
+  };
 }

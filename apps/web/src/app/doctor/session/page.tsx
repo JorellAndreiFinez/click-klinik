@@ -108,7 +108,22 @@ export default function DoctorSessionPage() {
   }
 
   return (
-    <div className="min-h-full bg-[linear-gradient(180deg,#f7f2e8_0%,#f4ecde_100%)] px-6 py-6 sm:px-8">
+    <div className="min-h-full bg-[#f7f2e8]">
+      <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
+        <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+          Consultation session
+        </p>
+        <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+          {activeAppointment
+            ? `Ready for ${activeAppointment.patientName}`
+            : "Waiting for the next booked teleconsult"}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Join the active consultation, keep patient context visible, then finish with notes and prescriptions.
+        </p>
+      </section>
+
+      <div className="px-6 py-6 sm:px-8">
       {actionError ? (
         <div className="mb-5 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-4 text-sm text-destructive">
           {actionError}
@@ -116,21 +131,10 @@ export default function DoctorSessionPage() {
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.4fr]">
-        <section className="rounded-[2rem] bg-primary p-7 text-primary-foreground sm:p-8">
-          <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
-            Consultation session
-          </p>
-          <h1 className="mt-4 text-3xl font-bold">
-            {activeAppointment
-              ? `Ready for ${activeAppointment.patientName}`
-              : "Waiting for the next booked teleconsult"}
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-primary-foreground/70">
-            Join the active consultation, keep the patient context visible, and finish the session with proper clinical documentation.
-          </p>
+        <section className="rounded-xl border border-[#12324d]/10 bg-white p-5 sm:p-6">
           <div className="mt-6 flex flex-wrap gap-3">
             <Button
-              className="h-11 rounded-xl bg-secondary text-secondary-foreground hover:bg-secondary/90"
+              className="h-11 rounded-xl"
               disabled={!activeAppointment}
               onClick={() => void handleJoin()}
             >
@@ -139,7 +143,7 @@ export default function DoctorSessionPage() {
             </Button>
             <Button
               variant="outline"
-              className="h-11 rounded-xl border-primary-foreground/16 bg-primary-foreground/[0.04] text-primary-foreground hover:bg-primary-foreground/[0.08]"
+              className="h-11 rounded-xl"
               disabled={!activeAppointment}
               onClick={() => void handleComplete()}
             >
@@ -148,7 +152,7 @@ export default function DoctorSessionPage() {
           </div>
         </section>
 
-        <aside className="rounded-[2rem] border border-primary/10 bg-card p-6">
+        <aside className="rounded-xl border border-[#12324d]/10 bg-white p-5">
           <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
             Session status
           </p>
@@ -311,6 +315,7 @@ export default function DoctorSessionPage() {
             </div>
           </article>
         </section>
+      </div>
       </div>
     </div>
   );

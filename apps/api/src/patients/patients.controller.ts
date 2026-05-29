@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
+import { MedicalRecordsService } from '../medical-records/medical-records.service';
 import { CheckMobileNumberDto } from './dto/check-mobile-number.dto';
 import { UpsertPatientProfileDto } from './dto/upsert-patient-profile.dto';
 import { PatientsService } from './patients.service';
@@ -9,7 +10,10 @@ import { Patient } from './schemas/patient.schema';
 @Controller('patients')
 @UseGuards(FirebaseAuthGuard)
 export class PatientsController {
-  constructor(private readonly patientsService: PatientsService) {}
+  constructor(
+    private readonly patientsService: PatientsService,
+    private readonly medicalRecordsService: MedicalRecordsService,
+  ) {}
 
   @Get('me')
   getMyProfile(@Req() request: AuthenticatedRequest): Promise<Patient> {
@@ -22,6 +26,11 @@ export class PatientsController {
     @Body() dto: UpsertPatientProfileDto,
   ): Promise<Patient> {
     return this.patientsService.upsertProfile(request.user, dto);
+  }
+
+  @Get('me/records')
+  getMyRecords(@Req() request: AuthenticatedRequest) {
+    return this.medicalRecordsService.getPatientRecords(request.user);
   }
 
   @Post('signup-eligibility')

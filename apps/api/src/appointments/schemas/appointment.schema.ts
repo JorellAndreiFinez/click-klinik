@@ -12,7 +12,14 @@ export const APPOINTMENT_STATUSES = [
 ] as const;
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
-export type AppointmentPaymentStatus = 'mock_pending' | 'paid' | 'pending' | 'unpaid';
+export type AppointmentPaymentStatus =
+  | 'mock_pending'
+  | 'paid'
+  | 'pending'
+  | 'refunded'
+  | 'unpaid';
+export type AppointmentPaymentPlan = 'pay_now' | 'pay_after_consultation';
+export type DoctorPayoutStatus = 'pending_payment' | 'available' | 'paid_out';
 
 @Schema({ _id: false })
 export class AppointmentAddOn {
@@ -28,6 +35,51 @@ export class AppointmentAddOn {
 
 export const AppointmentAddOnSchema =
   SchemaFactory.createForClass(AppointmentAddOn);
+
+@Schema({ _id: false })
+export class AppointmentTriage {
+  @Prop({ required: true, enum: ['google_meet', 'physical_visit', 'cellular'] })
+  consultMethod!: 'google_meet' | 'physical_visit' | 'cellular';
+
+  @Prop({ required: true, trim: true })
+  chiefComplaint!: string;
+
+  @Prop({ required: true, trim: true })
+  detailedSymptoms!: string;
+
+  @Prop({ required: true })
+  onsetDate!: Date;
+
+  @Prop({ type: [String], default: [] })
+  medications!: string[];
+
+  @Prop({ type: [String], default: [] })
+  allergies!: string[];
+
+  @Prop({ type: [String], default: [] })
+  healthProblems!: string[];
+
+  @Prop({ required: true, enum: ['yes', 'no', 'prefer_not_to_say'] })
+  smokes!: 'yes' | 'no' | 'prefer_not_to_say';
+
+  @Prop({ required: true, enum: ['yes', 'no', 'prefer_not_to_say'] })
+  drinksAlcohol!: 'yes' | 'no' | 'prefer_not_to_say';
+
+  @Prop({ required: true, default: false })
+  insurancePartnersConsent!: boolean;
+
+  @Prop({ required: true, default: false })
+  laboratoryPartnersConsent!: boolean;
+
+  @Prop({ required: true, default: false })
+  pharmacyPartnersConsent!: boolean;
+
+  @Prop({ required: true, default: false })
+  emergencyDisclosureConsent!: boolean;
+}
+
+export const AppointmentTriageSchema =
+  SchemaFactory.createForClass(AppointmentTriage);
 
 @Schema({ timestamps: true, collection: 'appointments' })
 export class Appointment {
@@ -64,6 +116,9 @@ export class Appointment {
   @Prop({ type: [AppointmentAddOnSchema], default: [] })
   addOns!: AppointmentAddOn[];
 
+  @Prop({ type: AppointmentTriageSchema, required: true })
+  triage!: AppointmentTriage;
+
   @Prop({ required: true, min: 0 })
   baseFeePhp!: number;
 
@@ -97,10 +152,20 @@ export class Appointment {
   @Prop({ trim: true })
   googleCalendarHtmlLink?: string;
 
-  @Prop({ required: true, enum: ['pay_later', 'paymongo', 'xendit'] })
-  paymentProvider!: 'pay_later' | 'paymongo' | 'xendit';
+  @Prop({ required: true, enum: ['xendit'] })
+  paymentProvider!: 'xendit';
 
-  @Prop({ required: true, enum: ['mock_pending', 'paid', 'pending', 'unpaid'] })
+  @Prop({
+    required: true,
+    enum: ['pay_now', 'pay_after_consultation'],
+    default: 'pay_now',
+  })
+  paymentPlan!: AppointmentPaymentPlan;
+
+  @Prop({
+    required: true,
+    enum: ['mock_pending', 'paid', 'pending', 'refunded', 'unpaid'],
+  })
   paymentStatus!: AppointmentPaymentStatus;
 
   @Prop({ trim: true })
@@ -111,6 +176,45 @@ export class Appointment {
 
   @Prop({ trim: true })
   paymentCheckoutUrl?: string;
+
+  @Prop()
+  paymentDueAt?: Date;
+
+  @Prop({ index: true, trim: true })
+  payoutId?: string;
+
+  @Prop({ min: 0, max: 1, default: 0.15 })
+  platformCommissionRate?: number;
+
+  @Prop({ min: 0, default: 0 })
+  platformCommissionPhp?: number;
+
+  @Prop({ min: 0, default: 0 })
+  doctorPayoutPhp?: number;
+
+  @Prop({
+    enum: ['pending_payment', 'available', 'paid_out'],
+    default: 'pending_payment',
+  })
+  doctorPayoutStatus?: DoctorPayoutStatus;
+
+  @Prop({
+    enum: ['none', 'requested', 'approved', 'rejected', 'refunded'],
+    default: 'none',
+  })
+  refundStatus?: 'none' | 'requested' | 'approved' | 'rejected' | 'refunded';
+
+  @Prop()
+  refundRequestedAt?: Date;
+
+  @Prop({ trim: true })
+  refundReason?: string;
+
+  @Prop({ trim: true })
+  refundProviderRefundId?: string;
+
+  @Prop({ trim: true })
+  refundProviderStatus?: string;
 }
 
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment);
