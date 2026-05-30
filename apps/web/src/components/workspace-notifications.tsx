@@ -30,6 +30,9 @@ export function WorkspaceNotifications() {
 
     return onAuthStateChanged(getFirebaseAuth(), (nextUser) => {
       setUser(nextUser);
+      initializedRef.current = false;
+      seenIdsRef.current = new Set(loadSeenNotificationIds(nextUser?.uid));
+      setFloating([]);
     });
   }, [configured]);
 
@@ -43,14 +46,17 @@ export function WorkspaceNotifications() {
       setNotifications(nextNotifications);
 
       if (!initializedRef.current) {
-        nextNotifications.forEach((notification) =>
-          seenIdsRef.current.add(notification._id),
-        );
         const initialUnread = nextNotifications.filter(
-          (notification) => !notification.read,
+          (notification) =>
+            !notification.read && !seenIdsRef.current.has(notification._id),
         );
         if (initialUnread.length > 0) {
-          setFloating(initialUnread.slice(0, 3));
+          const nextFloating = initialUnread.slice(0, 2);
+          nextFloating.forEach((notification) => {
+            seenIdsRef.current.add(notification._id);
+            rememberSeenNotification(user.uid, notification._id);
+          });
+          setFloating(nextFloating);
         }
         initializedRef.current = true;
         return;
@@ -62,11 +68,12 @@ export function WorkspaceNotifications() {
       );
 
       if (newUnread.length > 0) {
-        newUnread.forEach((notification) =>
-          seenIdsRef.current.add(notification._id),
-        );
+        newUnread.forEach((notification) => {
+          seenIdsRef.current.add(notification._id);
+          rememberSeenNotification(user.uid, notification._id);
+        });
         setFloating((current) =>
-          [...newUnread.slice(0, 3), ...current].slice(0, 3),
+          [...newUnread.slice(0, 2), ...current].slice(0, 2),
         );
       }
     };
@@ -107,9 +114,18 @@ export function WorkspaceNotifications() {
     );
   }
 
+  function dismissFloating(notificationId: string) {
+    if (user) {
+      rememberSeenNotification(user.uid, notificationId);
+    }
+    setFloating((current) =>
+      current.filter((notification) => notification._id !== notificationId),
+    );
+  }
+
   return (
     <>
-      <div className="fixed top-3 right-3 z-50 sm:top-4 sm:right-4">
+      <div className="fixed top-3 right-3 z-40 sm:top-4 sm:right-4">
         <div className="relative">
           <Button
             type="button"
@@ -165,18 +181,30 @@ export function WorkspaceNotifications() {
         </div>
       </div>
 
-      <div className="pointer-events-none fixed top-16 right-3 z-50 grid w-[min(360px,calc(100vw-24px))] gap-2 sm:right-4">
+      <div className="pointer-events-none fixed right-3 left-3 top-16 z-40 grid gap-2 sm:left-auto sm:right-4 sm:w-[360px]">
         {floating.map((notification) => (
           <div
             key={notification._id}
-            className="pointer-events-auto rounded-2xl border border-[#12324d]/10 bg-white px-4 py-3 shadow-[0_24px_70px_-34px_rgba(8,43,69,0.9)]"
+            className="pointer-events-auto animate-in slide-in-from-top-2 rounded-2xl border border-[#12324d]/10 bg-white px-4 py-3 shadow-[0_24px_70px_-34px_rgba(8,43,69,0.9)]"
           >
-            <p className="text-sm font-bold text-primary">
-              {notification.title}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {notification.message}
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-primary">
+                  {notification.title}
+                </p>
+                <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">
+                  {notification.message}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-[#f7f2e8] hover:text-primary"
+                onClick={() => dismissFloating(notification._id)}
+                aria-label="Dismiss notification"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -243,4 +271,33 @@ function formatNotificationDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function loadSeenNotificationIds(uid?: string | null): string[] {
+  if (!uid || typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      `click-klinik-floating-notifications:${uid}`,
+    );
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberSeenNotification(uid: string, notificationId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const key = `click-klinik-floating-notifications:${uid}`;
+  const seen = new Set(loadSeenNotificationIds(uid));
+  seen.add(notificationId);
+  window.localStorage.setItem(key, JSON.stringify([...seen].slice(-120)));
 }

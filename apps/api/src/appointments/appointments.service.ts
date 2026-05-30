@@ -38,6 +38,7 @@ type DoctorPayoutSummary = {
     platformCommissionPhp: number;
     doctorPayoutPhp: number;
     availablePayoutPhp: number;
+    paidOutPayoutPhp: number;
     pendingPayoutPhp: number;
     refundedPhp: number;
   };
@@ -98,15 +99,41 @@ export class AppointmentsService {
       throw new ConflictException('Select a valid symptom onset date.');
     }
 
-    const slot = await this.scheduleSlotModel
-      .findOne({
-        _id: dto.scheduleSlotId,
+    const bookedOverlap = await this.scheduleSlotModel
+      .exists({
         doctorApplicationId: String(doctor._id),
-        status: 'available',
+        status: 'booked',
+        startAt: { $lt: selectedEndAt },
+        endAt: { $gt: selectedStartAt },
       })
       .exec();
 
-    if (!slot || selectedStartAt < slot.startAt || selectedEndAt > slot.endAt) {
+    if (bookedOverlap) {
+      throw new ConflictException(
+        'This 30-minute time slot was just booked by another patient. Please choose another available time.',
+      );
+    }
+
+    const selectedSlotQuery = {
+      doctorApplicationId: String(doctor._id),
+      status: 'available' as const,
+      startAt: { $lte: selectedStartAt },
+      endAt: { $gte: selectedEndAt },
+    };
+
+    const slot =
+      (await this.scheduleSlotModel
+        .findOne({
+          _id: dto.scheduleSlotId,
+          ...selectedSlotQuery,
+        })
+        .exec()) ??
+      (await this.scheduleSlotModel
+        .findOne(selectedSlotQuery)
+        .sort({ startAt: 1, endAt: 1 })
+        .exec());
+
+    if (!slot) {
       throw new ConflictException(
         'This consultation slot is no longer available.',
       );
@@ -143,8 +170,14 @@ export class AppointmentsService {
           : null;
 
       const updatedSlot = await this.scheduleSlotModel
-        .findByIdAndUpdate(
-          slot._id,
+        .findOneAndUpdate(
+          {
+            _id: slot._id,
+            doctorApplicationId: String(doctor._id),
+            status: 'available',
+            startAt: slot.startAt,
+            endAt: slot.endAt,
+          },
           {
             $set: {
               startAt: selectedStartAt,
@@ -324,7 +357,9 @@ export class AppointmentsService {
       .sort({ scheduledStartAt: 1 })
       .exec();
 
-    return this.syncPendingPaymentStatuses(appointments);
+    return this.hydrateAppointmentLocationSnapshots(
+      await this.syncPendingPaymentStatuses(appointments),
+    );
   }
 
   async refreshPaymentStatus(
@@ -439,7 +474,9 @@ export class AppointmentsService {
       .sort({ scheduledStartAt: 1 })
       .exec();
 
-    return this.syncPendingPaymentStatuses(appointments);
+    return this.hydrateAppointmentLocationSnapshots(
+      await this.syncPendingPaymentStatuses(appointments),
+    );
   }
 
   async listDoctorPayouts(user: DecodedIdToken): Promise<DoctorPayoutSummary> {
@@ -469,16 +506,21 @@ export class AppointmentsService {
           return summary;
         }
 
+        if (payout.status === 'pending_payment') {
+          summary.pendingPayoutPhp += payout.doctorPayoutPhp;
+          return summary;
+        }
+
         summary.grossAmountPhp += payout.grossAmountPhp;
         summary.platformCommissionPhp += payout.platformCommissionPhp;
         summary.doctorPayoutPhp += payout.doctorPayoutPhp;
 
-        if (payout.status === 'available' || payout.status === 'paid_out') {
+        if (payout.status === 'available') {
           summary.availablePayoutPhp += payout.doctorPayoutPhp;
         }
 
-        if (payout.status === 'pending_payment') {
-          summary.pendingPayoutPhp += payout.doctorPayoutPhp;
+        if (payout.status === 'paid_out') {
+          summary.paidOutPayoutPhp += payout.doctorPayoutPhp;
         }
 
         return summary;
@@ -487,6 +529,7 @@ export class AppointmentsService {
         availablePayoutPhp: 0,
         doctorPayoutPhp: 0,
         grossAmountPhp: 0,
+        paidOutPayoutPhp: 0,
         pendingPayoutPhp: 0,
         platformCommissionPhp: 0,
         refundedPhp: 0,
@@ -515,12 +558,24 @@ export class AppointmentsService {
       (sum, payout) => sum + payout.doctorPayoutPhp,
       0,
     );
+    const payoutResult = this.paymentsService.simulateXenditPayout({
+      amountPhp: totalPayout,
+      doctorEmail: doctor.professionalEmail,
+      doctorName: `Dr. ${doctor.firstName} ${doctor.lastName}`,
+    });
 
     await Promise.all([
       this.payoutModel
         .updateMany(
           { _id: { $in: payoutIds } },
-          { $set: { status: 'paid_out', paidAt } },
+          {
+            $set: {
+              status: 'paid_out',
+              paidAt,
+              payoutProviderPayoutId: payoutResult.providerPayoutId,
+              payoutProviderStatus: payoutResult.providerStatus,
+            },
+          },
         )
         .exec(),
       this.appointmentModel
@@ -598,6 +653,24 @@ export class AppointmentsService {
       throw new NotFoundException('Consultation not found.');
     }
 
+    if (nextStatus === 'cancelled') {
+      await Promise.all([
+        this.notificationsService.createForPatient(appointment.patientId, {
+          type: 'appointment_status',
+          title: 'Consultation cancelled',
+          message: 'Your consultation was cancelled and the schedule was released.',
+          href: '/patient/appointments',
+        }),
+        this.notificationsService.createForDoctor(appointment.doctorApplicationId, {
+          type: 'appointment_status',
+          title: 'Patient consultation cancelled',
+          message: `${appointment.patientName} cancelled the ${formatDateTime(appointment.scheduledStartAt)} consultation.`,
+          href: '/doctor/schedule/calendar',
+        }),
+      ]);
+      return updated;
+    }
+
     await this.notificationsService.createForPatient(appointment.patientId, {
       type: 'appointment_status',
       title: 'Consultation status updated',
@@ -648,6 +721,21 @@ export class AppointmentsService {
     if (!updated) {
       throw new NotFoundException('Consultation not found.');
     }
+
+    await Promise.all([
+      this.notificationsService.createForPatient(updated.patientId, {
+        type: 'refund',
+        title: 'Refund processed',
+        message: `Your ${updated.consultationLabel} was cancelled and the refund was marked as ${updated.refundStatus}.`,
+        href: '/patient/appointments',
+      }),
+      this.notificationsService.createForDoctor(updated.doctorApplicationId, {
+        type: 'refund',
+        title: 'Consultation refunded',
+        message: `${updated.patientName} cancelled and refunded ${formatPhp(updated.totalFeePhp)}.`,
+        href: '/doctor/schedule/calendar',
+      }),
+    ]);
 
     return updated;
   }
@@ -924,12 +1012,20 @@ export class AppointmentsService {
       throw new NotFoundException('Consultation not found.');
     }
 
-    await this.notificationsService.createForPatient(appointment.patientId, {
-      type: 'appointment_status',
-      title: 'Consultation cancelled',
-      message: 'Your consultation was cancelled and the schedule was released.',
-      href: '/patient/appointments',
-    });
+    await Promise.all([
+      this.notificationsService.createForPatient(appointment.patientId, {
+        type: 'appointment_status',
+        title: 'Consultation cancelled',
+        message: 'Your consultation was cancelled and the schedule was released.',
+        href: '/patient/appointments',
+      }),
+      this.notificationsService.createForDoctor(appointment.doctorApplicationId, {
+        type: 'appointment_status',
+        title: 'Patient consultation cancelled',
+        message: `${appointment.patientName} cancelled the ${formatDateTime(appointment.scheduledStartAt)} consultation.`,
+        href: '/doctor/schedule/calendar',
+      }),
+    ]);
 
     return updated;
   }
@@ -965,12 +1061,21 @@ export class AppointmentsService {
   private async getPatient(
     user: DecodedIdToken,
   ): Promise<HydratedDocument<Patient>> {
+    const email =
+      typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
     const patient = await this.patientModel
-      .findOne({ firebaseUid: user.uid })
+      .findOne({ $or: [{ firebaseUid: user.uid }, { email }] })
       .exec();
 
     if (!patient) {
       throw new ForbiddenException('Patient access is required.');
+    }
+
+    if (patient.firebaseUid !== user.uid) {
+      await this.patientModel
+        .findByIdAndUpdate(patient._id, { $set: { firebaseUid: user.uid } })
+        .exec();
+      patient.firebaseUid = user.uid;
     }
 
     return patient;
@@ -1044,8 +1149,10 @@ export class AppointmentsService {
     user: DecodedIdToken,
     patientId: string,
   ): Promise<boolean> {
+    const email =
+      typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
     const patient = await this.patientModel
-      .findOne({ firebaseUid: user.uid })
+      .findOne({ $or: [{ firebaseUid: user.uid }, { email }] })
       .select(['_id'])
       .exec();
 
@@ -1088,6 +1195,68 @@ export class AppointmentsService {
     );
 
     return syncedAppointments;
+  }
+
+  private async hydrateAppointmentLocationSnapshots(
+    appointments: Appointment[],
+  ): Promise<Appointment[]> {
+    return Promise.all(
+      appointments.map(async (appointment) => {
+        const needsPatientLocation =
+          !isFiniteNumber(appointment.patientLatitude) ||
+          !isFiniteNumber(appointment.patientLongitude) ||
+          !appointment.patientLocation;
+        const needsDoctorLocation =
+          !isFiniteNumber(appointment.doctorLatitude) ||
+          !isFiniteNumber(appointment.doctorLongitude) ||
+          !appointment.doctorLocation;
+
+        if (!needsPatientLocation && !needsDoctorLocation) {
+          return appointment;
+        }
+
+        const [patient, doctor] = await Promise.all([
+          needsPatientLocation
+            ? this.patientModel.findById(appointment.patientId).exec()
+            : Promise.resolve(null),
+          needsDoctorLocation
+            ? this.doctorModel.findById(appointment.doctorApplicationId).exec()
+            : Promise.resolve(null),
+        ]);
+        const update: Partial<Appointment> = {};
+
+        if (patient) {
+          update.patientLocation = buildLocationLabel(patient);
+          update.patientRegionName = patient.regionName;
+          update.patientProvinceName = patient.provinceName;
+          update.patientCityMunicipalityName = patient.cityMunicipalityName;
+          update.patientBarangayName = patient.barangayName;
+          update.patientLatitude = patient.latitude;
+          update.patientLongitude = patient.longitude;
+        }
+
+        if (doctor) {
+          update.doctorLocation = buildLocationLabel(doctor);
+          update.doctorClinicOrHospital = doctor.clinicOrHospital;
+          update.doctorRegionName = doctor.regionName;
+          update.doctorProvinceName = doctor.provinceName;
+          update.doctorCityMunicipalityName = doctor.cityMunicipalityName;
+          update.doctorBarangayName = doctor.barangayName;
+          update.doctorLatitude = doctor.latitude;
+          update.doctorLongitude = doctor.longitude;
+        }
+
+        if (Object.keys(update).length === 0) {
+          return appointment;
+        }
+
+        const updated = await this.appointmentModel
+          .findByIdAndUpdate(getDocumentId(appointment), { $set: update }, { new: true })
+          .exec();
+
+        return updated ?? appointment;
+      }),
+    );
   }
 }
 
@@ -1277,6 +1446,10 @@ function isPaidPaymentStatus(status?: string): boolean {
     normalized === 'COMPLETED' ||
     normalized === 'SUCCEEDED'
   );
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function validateBookableRange(startAt: Date, endAt: Date): void {

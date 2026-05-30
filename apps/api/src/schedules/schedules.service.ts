@@ -423,10 +423,10 @@ export class SchedulesService {
     for (
       const currentDate = startOfDay(windowStart);
       currentDate < windowEnd;
-      currentDate.setDate(currentDate.getDate() + 1)
+      currentDate.setTime(addPhilippineDays(currentDate, 1).getTime())
     ) {
       const entry = entries.find(
-        (item) => item.dayOfWeek === currentDate.getDay(),
+        (item) => item.dayOfWeek === getPhilippineDayOfWeek(currentDate),
       );
 
       if (!entry || entry.status === 'off') {
@@ -580,6 +580,8 @@ export class SchedulesService {
 }
 
 const DEFAULT_RECURRING_WINDOW_DAYS = 60;
+const PH_TIME_ZONE = 'Asia/Manila';
+const PH_UTC_OFFSET_HOURS = 8;
 
 function subtractSegment(
   segment: { startAt: Date; endAt: Date },
@@ -631,7 +633,11 @@ function validateDateRange(startAt: Date, endAt: Date): void {
 }
 
 function describeSlot(slot: ScheduleSlot): string {
-  return `${slot.startAt.toLocaleString('en-PH')} to ${slot.endAt.toLocaleTimeString('en-PH')}`;
+  return `${slot.startAt.toLocaleString('en-PH', {
+    timeZone: PH_TIME_ZONE,
+  })} to ${slot.endAt.toLocaleTimeString('en-PH', {
+    timeZone: PH_TIME_ZONE,
+  })}`;
 }
 
 const DAY_LABELS = [
@@ -736,9 +742,8 @@ function toMinutes(value: string): number {
 
 function combineDateAndTime(date: Date, time: string): Date {
   const [hours, minutes] = time.split(':').map(Number);
-  const combined = new Date(date);
-  combined.setHours(hours, minutes, 0, 0);
-  return combined;
+  const { year, month, day } = getPhilippineDateParts(date);
+  return createPhilippineWallTimeDate(year, month, day, hours, minutes);
 }
 
 function resolveSlotWindow(
@@ -749,15 +754,13 @@ function resolveSlotWindow(
   endAt: Date;
 } {
   if (!from && !to) {
-    const startAt = startOfDay(new Date());
-    const endAt = new Date(startAt);
-    endAt.setDate(endAt.getDate() + DEFAULT_RECURRING_WINDOW_DAYS);
+    const startAt = startOfPhilippineDay(new Date());
+    const endAt = addPhilippineDays(startAt, DEFAULT_RECURRING_WINDOW_DAYS);
     return { startAt, endAt };
   }
 
-  const startAt = startOfDay(parseWindowDate(from, 'from'));
-  const endAt = startOfDay(parseWindowDate(to, 'to'));
-  endAt.setDate(endAt.getDate() + 1);
+  const startAt = startOfPhilippineDay(parseWindowDate(from, 'from'));
+  const endAt = addPhilippineDays(startOfPhilippineDay(parseWindowDate(to, 'to')), 1);
 
   if (endAt <= startAt) {
     throw new BadRequestException(
@@ -773,6 +776,11 @@ function parseWindowDate(value: string | undefined, label: string): Date {
     return new Date();
   }
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return createPhilippineWallTimeDate(year, month, day, 0, 0);
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     throw new BadRequestException(`Enter a valid ${label} date.`);
@@ -782,7 +790,59 @@ function parseWindowDate(value: string | undefined, label: string): Date {
 }
 
 function startOfDay(date: Date): Date {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
+  return startOfPhilippineDay(date);
+}
+
+function startOfPhilippineDay(date: Date): Date {
+  const { year, month, day } = getPhilippineDateParts(date);
+  return createPhilippineWallTimeDate(year, month, day, 0, 0);
+}
+
+function addPhilippineDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function createPhilippineWallTimeDate(
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number,
+): Date {
+  return new Date(
+    Date.UTC(year, month - 1, day, hours - PH_UTC_OFFSET_HOURS, minutes, 0, 0),
+  );
+}
+
+function getPhilippineDateParts(date: Date): {
+  year: number;
+  month: number;
+  day: number;
+} {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PH_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const getPart = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    year: getPart('year'),
+    month: getPart('month'),
+    day: getPart('day'),
+  };
+}
+
+function getPhilippineDayOfWeek(date: Date): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: PH_TIME_ZONE,
+    weekday: 'short',
+  }).format(date);
+  const index = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+    weekday,
+  );
+
+  return (index < 0 ? 0 : index) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 }

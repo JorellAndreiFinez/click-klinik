@@ -19,12 +19,20 @@ export class PatientsService {
   ) {}
 
   async getProfile(user: DecodedIdToken): Promise<Patient> {
+    const email = getAccountEmail(user);
     const patient = await this.patientModel
-      .findOne({ firebaseUid: user.uid })
+      .findOne({ $or: [{ firebaseUid: user.uid }, { email }] })
       .exec();
 
     if (!patient) {
       throw new NotFoundException('Patient profile has not been completed.');
+    }
+
+    if (patient.firebaseUid !== user.uid) {
+      await this.patientModel
+        .findByIdAndUpdate(patient._id, { $set: { firebaseUid: user.uid } })
+        .exec();
+      patient.firebaseUid = user.uid;
     }
 
     return patient;
@@ -61,7 +69,7 @@ export class PatientsService {
               firstName: dto.firstName.trim(),
               lastName: dto.lastName.trim(),
               suffix: dto.suffix?.trim(),
-              email,
+              email: email.toLowerCase(),
               mobileNumber,
               birthdate: new Date(dto.birthdate),
               sex: dto.sex,

@@ -12,6 +12,8 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import {
   getMyDoctorPatientDetail,
   getMyDoctorPatients,
@@ -21,6 +23,8 @@ import {
 
 export default function DoctorRecordsPage() {
   const { user } = useDoctorWorkspace();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].doctorRecords;
   const [query, setQuery] = useState("");
   const [patients, setPatients] = useState<DoctorPatientListItem[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -82,26 +86,27 @@ export default function DoctorRecordsPage() {
 
   return (
     <div className="w-full bg-[#f7f2e8]">
-      <section className="border-b border-[#12324d]/10 bg-white">
+      <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] text-white">
+        <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/20 blur-3xl" />
         <div className="grid xl:grid-cols-[1.12fr_0.88fr]">
-          <div className="px-6 py-7 sm:px-8">
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Medical records
+          <div className="relative px-6 py-7 sm:px-8">
+            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+              {t.eyebrow}
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-              Review patient records across consultations.
+            <h1 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl">
+              {t.title}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Open appointment history, public consultation notes from other doctors in the app, and prescriptions already issued to the patient.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
+              {t.description}
             </p>
           </div>
-          <div className="border-t border-[#12324d]/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l">
-            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-              Assigned patients
+          <div className="relative border-t border-white/15 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l">
+            <p className="text-xs font-bold tracking-[0.16em] text-secondary uppercase">
+              {t.linkedPatients}
             </p>
-            <p className="mt-3 text-3xl font-bold text-primary">{patients.length}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              active patient profiles linked to your consultations
+            <p className="mt-3 text-3xl font-bold">{patients.length}</p>
+            <p className="mt-2 text-sm text-white/70">
+              {t.linkedPatientsCopy}
             </p>
           </div>
         </div>
@@ -109,14 +114,14 @@ export default function DoctorRecordsPage() {
 
       <section className="grid xl:grid-cols-[320px_1fr]">
         <aside className="border-r border-[#12324d]/10 bg-[#fcfaf5] px-6 py-5 sm:px-8">
-          <div className="flex h-11 items-center gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4">
+          <div className="flex h-12 items-center gap-3 rounded-2xl border border-[#12324d]/10 bg-white px-4 shadow-[0_16px_40px_-36px_rgba(8,43,69,0.8)]">
             <Search className="size-4 text-muted-foreground" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search patient, concern, or email"
+              placeholder={t.searchPlaceholder}
               className="w-full bg-transparent text-sm outline-none"
-              aria-label="Search patient records"
+              aria-label={t.searchPlaceholder}
             />
           </div>
 
@@ -131,10 +136,10 @@ export default function DoctorRecordsPage() {
                     setDetail(null);
                     setSelectedPatientId(patient.patientId);
                   }}
-                  className={`w-full border px-4 py-4 text-left transition-colors ${
+                  className={`w-full border px-4 py-4 text-left shadow-[0_16px_46px_-44px_rgba(8,43,69,0.9)] transition-all hover:-translate-y-0.5 ${
                     active
-                      ? "rounded-xl border-primary bg-primary/[0.045]"
-                      : "rounded-xl border-[#12324d]/10 bg-white hover:bg-primary/[0.03]"
+                      ? "rounded-2xl border-primary bg-primary text-primary-foreground"
+                      : "rounded-2xl border-[#12324d]/10 bg-white hover:bg-primary/[0.03]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -157,8 +162,8 @@ export default function DoctorRecordsPage() {
             })}
 
             {!loading && filteredPatients.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
-                No matching patients found.
+              <div className="rounded-2xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+                {t.noPatients}
               </div>
             ) : null}
           </div>
@@ -166,20 +171,20 @@ export default function DoctorRecordsPage() {
 
         <div className="bg-[#fffdf8] px-6 py-5 sm:px-8">
           {error ? (
-            <div className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-4 text-sm text-destructive">
+            <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-4 text-sm text-destructive">
               {error}
             </div>
           ) : null}
 
           {loading ? (
-            <div className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground">
-              Loading patient records...
+            <div className="rounded-2xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
+              {t.loading}
             </div>
           ) : null}
 
           {!loading && detailLoading ? (
-            <div className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground">
-              Opening patient chart...
+            <div className="rounded-2xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
+              {t.opening}
             </div>
           ) : null}
 
@@ -198,7 +203,7 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
       <div className="space-y-6">
-        <section className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+        <section className="rounded-2xl border border-[#12324d]/10 bg-white px-5 py-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
           <div className="flex items-start gap-3">
             <span className="flex size-11 items-center justify-center rounded-xl bg-primary/8 text-primary">
               <UserRound className="size-5" />
@@ -242,7 +247,7 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
             {appointments.map((appointment) => (
               <article
                 key={appointment._id}
-                className="grid gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4 py-4 sm:grid-cols-[150px_1fr_auto]"
+                className="grid gap-3 rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 shadow-[0_16px_42px_-38px_rgba(8,43,69,0.8)] sm:grid-cols-[150px_1fr_auto]"
               >
                 <div>
                   <p className="text-sm font-bold text-primary">
@@ -254,7 +259,9 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
                   </p>
                 </div>
                 <div>
-                  <p className="font-semibold">{appointment.consultationLabel || appointment.specializationName}</p>
+                  <p className="font-semibold">
+                    {appointment.consultationLabel || appointment.specializationName}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {appointment.doctorName} • {appointment.specializationName}
                   </p>
@@ -278,7 +285,7 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
             {records.map((record) => (
               <article
                 key={record._id}
-                className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
+                className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 shadow-[0_16px_42px_-38px_rgba(8,43,69,0.8)]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -314,7 +321,7 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
               </article>
             ))}
             {records.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
                 No consultation notes have been saved for this patient yet.
               </div>
             ) : null}
@@ -334,7 +341,7 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
               record.prescriptions.map((item, index) => (
                 <article
                   key={`${record._id}-${item.medicine}-${index}`}
-                  className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
+                  className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 shadow-[0_16px_42px_-38px_rgba(8,43,69,0.8)]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="font-semibold">{item.medicine}</p>
@@ -349,14 +356,14 @@ function PatientRecordPanels({ detail }: { detail: DoctorPatientDetail }) {
               )),
             )}
             {records.every((record) => record.prescriptions.length === 0) ? (
-              <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
                 No prescriptions saved for this patient yet.
               </div>
             ) : null}
           </div>
         </section>
 
-        <section className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-5 py-5">
+        <section className="rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-5 py-5">
           <p className="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-primary uppercase">
             <ShieldCheck className="size-4" />
             Access reminder
@@ -384,7 +391,7 @@ function SectionHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/8 text-primary">
           {icon}
         </span>
         <div>
@@ -410,8 +417,8 @@ function RecordBubble({
     <div
       className={
         tone === "public"
-          ? "rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3"
-          : "rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3"
+          ? "rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3"
+          : "rounded-2xl border border-primary/15 bg-primary/[0.04] px-4 py-3"
       }
     >
       <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">

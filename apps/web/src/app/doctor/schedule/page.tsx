@@ -11,6 +11,8 @@ import {
   type WeeklyTemplateEntry,
 } from "@/lib/schedule-api";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import { cn } from "@/lib/utils";
 
 type TemplateRow = {
@@ -44,6 +46,8 @@ const timeOptions = Array.from({ length: 14 }, (_, index) => {
 
 export default function DoctorSchedulePage() {
   const { user } = useDoctorWorkspace();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].doctorSchedule;
   const [rows, setRows] = useState<TemplateRow[]>(createDefaultRows());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -109,29 +113,29 @@ export default function DoctorSchedulePage() {
 
   return (
     <div className="w-full bg-[#f7f2e8]">
-      <section className="border-b border-[#12324d]/10 bg-white">
+      <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] text-white">
+        <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/20 blur-3xl" />
         <div className="grid xl:grid-cols-[1.08fr_0.92fr]">
-          <div className="px-6 py-7 sm:px-8">
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Availability
+          <div className="relative px-6 py-7 sm:px-8">
+            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+              {t.eyebrow}
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-              Set one weekly clinic pattern from Monday to Sunday.
+            <h1 className="mt-2 text-3xl font-bold leading-tight text-white sm:text-4xl">
+              {t.title}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Keep this simple: choose which days are open for teleconsultation,
-              apply a preset, and the same weekday pattern repeats automatically in future weeks.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
+              {t.description}
             </p>
           </div>
-          <div className="border-t border-[#12324d]/10 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l">
-            <p className="flex items-center gap-2 text-xs font-bold tracking-[0.16em] text-primary uppercase">
+          <div className="relative border-t border-white/15 px-6 py-7 sm:px-8 xl:border-t-0 xl:border-l">
+            <p className="flex items-center gap-2 text-xs font-bold tracking-[0.16em] text-secondary uppercase">
               <CalendarDays className="size-4" />
-              How it works
+              {t.howItWorks}
             </p>
-            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-              <p>Choose `Available` or `Off` for each weekday.</p>
-              <p>Use morning, afternoon, or whole-day presets.</p>
-              <p>Every Monday, Tuesday, and so on will follow this same pattern automatically.</p>
+            <div className="mt-4 space-y-2 rounded-2xl border border-white/15 bg-white/8 px-4 py-4 text-sm text-white/75">
+              <p>Choose {t.available.toLowerCase()} or {t.off.toLowerCase()} for each weekday.</p>
+              <p>Use {t.morning.toLowerCase()}, {t.afternoon.toLowerCase()}, or {t.wholeDay.toLowerCase()} presets.</p>
+              <p>The {t.weeklyPattern.toLowerCase()} repeats automatically for matching days.</p>
             </div>
           </div>
         </div>
@@ -141,14 +145,14 @@ export default function DoctorSchedulePage() {
         <div className="border-r border-[#12324d]/10 bg-[#fffdf8] px-6 py-6 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Weekly pattern
+              <p className="text-xs font-bold tracking-[0.18em] text-muted-foreground uppercase">
+                {t.weeklyPattern}
               </p>
-              <p className="mt-1 text-xl font-bold">Recurring availability</p>
+              <p className="mt-1 text-xl font-bold text-primary">{t.weeklyAvailability}</p>
             </div>
-            <Button disabled={busy} onClick={() => void handleSave()} className="h-11 rounded-xl px-5">
+            <Button disabled={busy} onClick={() => void handleSave()} className="h-11 rounded-2xl px-5">
               <Save className="size-4" />
-              {busy ? "Saving..." : "Save weekly pattern"}
+              {busy ? t.saving : t.save}
             </Button>
           </div>
 
@@ -156,15 +160,15 @@ export default function DoctorSchedulePage() {
             {rows.map((row, index) => (
               <article
                 key={row.dayOfWeek}
-                className="rounded-xl border border-[#12324d]/10 bg-white p-4"
+                className="rounded-2xl border border-[#12324d]/10 bg-white p-4 shadow-[0_18px_48px_-42px_rgba(8,43,69,0.9)]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-base font-bold">{row.label}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {row.status === "off"
-                        ? "No consultation window for this weekday."
-                        : `Available from ${toDisplayTime(row.startTime)} to ${toDisplayTime(row.endTime)} every ${row.label.toLowerCase()}.`}
+                        ? `${t.off}.`
+                        : `${t.available}: ${toDisplayTime(row.startTime)} - ${toDisplayTime(row.endTime)}.`}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -172,13 +176,13 @@ export default function DoctorSchedulePage() {
                       active={row.status === "available"}
                       onClick={() => updateRow(index, { status: "available" }, setRows)}
                     >
-                      Available
+                      {t.available}
                     </StatusChip>
                     <StatusChip
                       active={row.status === "off"}
                       onClick={() => updateRow(index, { status: "off" }, setRows)}
                     >
-                      Off
+                      {t.off}
                     </StatusChip>
                   </div>
                 </div>
@@ -200,23 +204,23 @@ export default function DoctorSchedulePage() {
                               setRows,
                             )
                           }
-                          className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/30 hover:text-primary"
+                          className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/[0.03] hover:text-primary"
                         >
-                          {preset.label}
+                          {preset.label === "Morning" ? t.morning : preset.label === "Afternoon" ? t.afternoon : t.wholeDay}
                         </button>
                       ))}
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <TimeSelect
-                        label="Start"
+                        label={t.start}
                         value={row.startTime}
                         onChange={(value) =>
                           updateRow(index, { startTime: value }, setRows)
                         }
                       />
                       <TimeSelect
-                        label="End"
+                        label={t.end}
                         value={row.endTime}
                         onChange={(value) =>
                           updateRow(index, { endTime: value }, setRows)
@@ -230,7 +234,7 @@ export default function DoctorSchedulePage() {
           </div>
 
           {notice ? (
-            <p className="mt-4 rounded-xl border border-primary/10 bg-primary/[0.03] p-3 text-sm text-muted-foreground">
+            <p className="mt-4 rounded-2xl border border-primary/10 bg-primary/[0.03] p-3 text-sm text-muted-foreground">
               {notice}
             </p>
           ) : null}
@@ -238,21 +242,21 @@ export default function DoctorSchedulePage() {
 
         <aside className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
           <div>
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Current setup
+            <p className="text-xs font-bold tracking-[0.18em] text-muted-foreground uppercase">
+              {t.currentSetup}
             </p>
-            <p className="mt-1 text-xl font-bold">Open consultation days</p>
+            <p className="mt-1 text-xl font-bold text-primary">{t.openDays}</p>
           </div>
 
           <div className="mt-5 space-y-3">
             {availableDays.map((day) => (
               <div
                 key={day.dayOfWeek}
-                className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4"
+                className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 shadow-[0_16px_42px_-38px_rgba(8,43,69,0.8)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold">{day.label}</p>
-                  <Badge variant="secondary">Available</Badge>
+                  <Badge variant="secondary">{t.available}</Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {toDisplayTime(day.startTime)} - {toDisplayTime(day.endTime)}
@@ -261,19 +265,18 @@ export default function DoctorSchedulePage() {
             ))}
 
             {availableDays.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
-                No consultation days are open yet. Turn on availability for at least one weekday.
+              <div className="rounded-2xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+                {t.noOpenDays}
               </div>
             ) : null}
           </div>
 
-          <div className="mt-6 rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
-            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-              Simpler workflow
+          <div className="mt-6 rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4">
+            <p className="text-xs font-bold tracking-[0.16em] text-muted-foreground uppercase">
+              {t.scheduleRule}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Day-specific preview editing was removed here to avoid duplicate and inconsistent periods.
-              Booking calendars will use this weekly pattern automatically.
+              {t.scheduleRuleCopy}
             </p>
           </div>
         </aside>
@@ -338,7 +341,7 @@ function TimeSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 rounded-xl border border-input bg-background px-3 text-sm"
+        className="h-12 rounded-2xl border border-input bg-background px-3 text-sm"
       >
         {timeOptions.map((option) => (
           <option key={option} value={option}>

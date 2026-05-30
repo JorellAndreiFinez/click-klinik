@@ -18,6 +18,9 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { WorkspaceNotifications } from "@/components/workspace-notifications";
+import { LanguageSelector } from "@/features/localization/language-selector";
+import { useLocale } from "@/features/localization/locale-provider";
+import { workspaceTranslations } from "@/features/localization/workspace-translations";
 import { cn } from "@/lib/utils";
 
 type PatientWorkspaceShellProps = {
@@ -60,7 +63,7 @@ const patientLinks = [
 ] as const;
 
 const logoTextUrl =
-  "https://firebasestorage.googleapis.com/v0/b/miolms.firebasestorage.app/o/click-klinik%2Flogo-with_bg.jpg?alt=media&token=1be21a6e-cba7-4cb1-a4b9-da1df3617fe7";
+  "https://firebasestorage.googleapis.com/v0/b/miolms.firebasestorage.app/o/click-klinik%2Flogo-textline_transparent.png?alt=media&token=926c192d-e291-4d7d-ab56-a65a20756dfd";
 
 export function PatientWorkspaceShell({
   children,
@@ -69,6 +72,8 @@ export function PatientWorkspaceShell({
 }: PatientWorkspaceShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { locale } = useLocale();
+  const t = workspaceTranslations[locale].shared;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
@@ -80,6 +85,15 @@ export function PatientWorkspaceShell({
     return () => mediaQuery.removeEventListener("change", syncCollapsed);
   }, []);
 
+  const localizedPatientLinks = [
+    { ...patientLinks[0], label: t.patientNav.home },
+    { ...patientLinks[1], label: t.patientNav.findCare },
+    { ...patientLinks[2], label: t.patientNav.appointments },
+    { ...patientLinks[3], label: t.patientNav.records },
+    { ...patientLinks[4], label: t.patientNav.monitoring },
+    { ...patientLinks[5], label: t.patientNav.profile },
+  ] as const;
+
   return (
     <main className="min-h-dvh bg-[#f7f2e8]">
       <div
@@ -90,37 +104,63 @@ export function PatientWorkspaceShell({
             : "grid-cols-[196px_minmax(0,1fr)]",
         )}
       >
-        <aside className="sticky top-0 flex h-dvh min-h-dvh flex-col self-start overflow-hidden border-r border-white/10 bg-[#07304a] px-2.5 py-3 text-primary-foreground shadow-[18px_0_60px_-48px_rgba(8,43,69,0.9)] sm:px-3.5 sm:py-4">
+        <aside className="sticky top-0 flex h-dvh min-h-dvh flex-col self-start overflow-hidden border-r border-white/10 bg-[#07304a] px-0 py-0 text-primary-foreground shadow-[18px_0_60px_-48px_rgba(8,43,69,0.9)]">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_50%_0%,rgba(255,217,46,0.16),transparent_62%)]" />
-          <div className="relative">
-            <Link href="/patient/portal" className="block w-fit">
+          <div
+            className={cn(
+              "relative flex h-[74px] items-center border-b border-[#12324d]/10 bg-white shadow-[0_12px_30px_-24px_rgba(8,43,69,0.85)]",
+              collapsed ? "justify-center px-2" : "px-4",
+            )}
+          >
+            <Link href="/patient/portal" className="block">
               <img
                 src={logoTextUrl}
                 alt="Click Klinik"
                 className={cn(
-                  "h-14 w-auto rounded-2xl object-contain",
-                  collapsed && "h-12 w-12 object-cover",
+                  "h-17 w-auto object-contain",
+                  collapsed && "h-12 max-w-12 object-contain object-left",
                 )}
               />
             </Link>
           </div>
 
+          <div className={cn("relative mt-4 px-3.5", collapsed && "px-2")}>
+            <div
+              className={cn(
+                "rounded-2xl border border-white/10 bg-white/[0.06] p-2",
+                collapsed
+                  ? "flex justify-center"
+                  : "flex items-center justify-between gap-3",
+              )}
+            >
+              <LanguageSelector
+                className={cn(
+                  collapsed
+                    ? "w-12 justify-center px-2"
+                    : "w-full justify-center",
+                )}
+              />
+            </div>
+          </div>
+
           <div
             className={cn(
-              "relative mt-5 rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-3",
+              "relative mx-3.5 mt-4 rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-3",
               collapsed && "hidden",
             )}
           >
-            <p className="truncate text-xs font-semibold text-primary-foreground/80">
-              Patient account
-            </p>
-            <p className="mt-1 truncate text-sm font-bold text-primary-foreground">
-              {patientName}
-            </p>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-primary-foreground/80">
+                {t.patientAccount}
+              </p>
+              <p className="mt-1 truncate text-sm font-bold text-primary-foreground">
+                {patientName}
+              </p>
+            </div>
           </div>
 
-          <nav className="relative mt-6 grid flex-1 content-start gap-2 overflow-y-auto pr-0.5">
-            {patientLinks.map((link) => {
+          <nav className="relative mt-6 grid flex-1 content-start gap-2 overflow-y-auto px-3.5">
+            {localizedPatientLinks.map((link) => {
               const active =
                 pathname === link.href ||
                 (link.href === "/patient/doctors" &&
@@ -148,20 +188,26 @@ export function PatientWorkspaceShell({
                   >
                     {link.icon}
                   </span>
-                  <span className={cn(collapsed && "hidden")}>{link.label}</span>
+                  <span className={cn(collapsed && "hidden")}>
+                    {link.label}
+                  </span>
                 </Link>
               );
             })}
           </nav>
 
-          <div className="relative mt-auto shrink-0 pt-3">
+          <div className="relative mt-auto shrink-0 px-3.5 pb-4 pt-3">
             <Button
               variant="ghost"
               onClick={() => setCollapsed((current) => !current)}
               className="mb-2 h-10 w-full rounded-2xl text-primary-foreground/70 hover:bg-white/[0.08] hover:text-primary-foreground"
             >
-              {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
-              <span className={cn(collapsed && "hidden")}>Collapse</span>
+              {collapsed ? (
+                <ChevronsRight className="size-4" />
+              ) : (
+                <ChevronsLeft className="size-4" />
+              )}
+              <span className={cn(collapsed && "hidden")}>{t.collapse}</span>
             </Button>
             <Button
               variant="outline"
@@ -169,7 +215,7 @@ export function PatientWorkspaceShell({
               className="h-11 w-full rounded-2xl border-white/12 bg-white/[0.05] text-primary-foreground hover:bg-white/[0.1] hover:text-primary-foreground"
             >
               <LogOut className="size-4" />
-              <span className={cn(collapsed && "hidden")}>Log out</span>
+              <span className={cn(collapsed && "hidden")}>{t.logout}</span>
             </Button>
           </div>
         </aside>

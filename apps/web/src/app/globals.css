@@ -85,9 +85,12 @@ body::before {
 .language-picker {
   display: inline-flex;
   height: 2.75rem;
+  min-width: 0;
+  width: 100%;
   align-items: center;
   gap: 0.45rem;
   border: 1px solid rgb(8 43 69 / 15%);
+  border-radius: 1rem;
   padding: 0 0.65rem;
   color: var(--foreground);
   background: var(--card);
@@ -101,6 +104,8 @@ body::before {
   font-family: var(--body);
   font-size: 0.8rem;
   font-weight: 600;
+  min-width: 0;
+  width: 100%;
   outline: 0;
 }
 

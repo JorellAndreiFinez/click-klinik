@@ -18,6 +18,8 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   createMyMonitoringLog,
@@ -54,6 +56,8 @@ const initialForm: MonitoringForm = {
 
 export default function PatientMonitoringPage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientMonitoring;
   const configured = isFirebaseConfigured();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<PatientProfile | null>(null);
@@ -138,14 +142,13 @@ export default function PatientMonitoringPage() {
       <div className="min-h-full bg-[#f7f2e8]">
         <header className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-            Home monitoring
+            {t.eyebrow}
           </p>
           <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-            Track readings doctors can review.
+            {t.title}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Log BP, glucose, temperature, oxygen, pulse, and weight. The system
-            summarizes whether readings look stable, changed, or need attention.
+            {t.description}
           </p>
         </header>
 
@@ -154,19 +157,20 @@ export default function PatientMonitoringPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
-                  Current snapshot
+                  {t.currentSnapshot}
                 </p>
                 <h2 className="mt-2 text-xl font-bold text-primary">
-                  {summary?.trend ? formatTrend(summary.trend) : "No logs yet"}
+                  {summary?.trend ? formatTrend(summary.trend) : t.noLogsYet}
                 </h2>
               </div>
               <Badge className={`${trendTone} rounded-full px-3 py-1`}>
-                {summary?.trend ? formatTrend(summary.trend) : "Start"}
+                {summary?.trend ? formatTrend(summary.trend) : t.start}
               </Badge>
             </div>
 
             <p className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm leading-6 text-muted-foreground">
               {summary?.summary ?? "Save your first home reading to generate a monitoring summary."}
+              {summary?.summary ?? t.firstReading}
             </p>
 
             {summary?.flags.length ? (
@@ -201,9 +205,9 @@ export default function PatientMonitoringPage() {
           </section>
 
           <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
-              Add reading
-            </p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                {t.addReading}
+              </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Field label="Systolic BP" value={form.systolicBp} onChange={(value) => setForm({ ...form, systolicBp: value })} placeholder="e.g. 120" />
               <Field label="Diastolic BP" value={form.diastolicBp} onChange={(value) => setForm({ ...form, diastolicBp: value })} placeholder="e.g. 80" />
@@ -215,7 +219,7 @@ export default function PatientMonitoringPage() {
               <Field label="Symptoms" value={form.symptoms} onChange={(value) => setForm({ ...form, symptoms: value })} placeholder="cough, dizzy, headache" />
             </div>
             <label className="mt-4 grid gap-2 text-sm font-semibold text-primary">
-              Notes
+              {t.notes}
               <textarea
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
@@ -233,7 +237,7 @@ export default function PatientMonitoringPage() {
 
             <Button className="mt-5 h-11 rounded-xl" disabled={saving} onClick={() => void handleSave()}>
               <Save className="size-4" />
-              {saving ? "Saving..." : "Save monitoring log"}
+              {saving ? t.saving : t.save}
             </Button>
           </section>
 
@@ -241,10 +245,10 @@ export default function PatientMonitoringPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
-                  Timeline
+                  {t.timeline}
                 </p>
                 <h2 className="mt-2 text-lg font-bold text-primary">
-                  Recent home logs
+                  {t.recentLogs}
                 </h2>
               </div>
               <Badge variant="outline">{logs.length} logs</Badge>
@@ -255,7 +259,7 @@ export default function PatientMonitoringPage() {
               ))}
               {logs.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-8 text-center text-sm text-muted-foreground">
-                  No monitoring logs yet. Add your first reading above.
+                  {t.noLogs}
                 </div>
               ) : null}
             </div>

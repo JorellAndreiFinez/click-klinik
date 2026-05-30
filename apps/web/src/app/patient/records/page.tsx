@@ -10,6 +10,7 @@ import {
   FileText,
   HeartPulse,
   Pill,
+  Search,
   ShieldCheck,
 } from "lucide-react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -19,19 +20,29 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   getMyPatientRecords,
   type PatientRecordsView,
 } from "@/lib/medical-records-api";
 import { getMyPatientProfile, type PatientProfile } from "@/lib/patient-api";
+import { cn } from "@/lib/utils";
+
+type RecordTypeFilter = "all" | "notes" | "prescriptions" | "certificates";
 
 export default function PatientRecordsPage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientRecords;
   const configured = isFirebaseConfigured();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [recordsView, setRecordsView] = useState<PatientRecordsView | null>(null);
   const [selectedRecordId, setSelectedRecordId] = useState("");
+  const [recordSearch, setRecordSearch] = useState("");
+  const [recordTypeFilter, setRecordTypeFilter] =
+    useState<RecordTypeFilter>("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(
     configured ? "Loading your health records..." : "Authentication is not configured yet.",
@@ -111,12 +122,56 @@ export default function PatientRecordsPage() {
       ),
     [recordsView],
   );
+  const filteredRecords = useMemo(() => {
+    const normalizedSearch = recordSearch.trim().toLowerCase();
+
+    return sortedRecords.filter((record) => {
+      if (recordTypeFilter === "notes") {
+        if (
+          !record.consultationSummary &&
+          !record.publicNote &&
+          !record.recommendations
+        ) {
+          return false;
+        }
+      }
+
+      if (
+        recordTypeFilter === "prescriptions" &&
+        record.prescriptions.length === 0
+      ) {
+        return false;
+      }
+
+      if (recordTypeFilter === "certificates" && !record.medicalCertificate) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return [
+        record.doctorName,
+        record.specializationName,
+        record.consultationSummary,
+        record.publicNote,
+        record.recommendations,
+        record.medicalCertificate?.title,
+        record.prescriptions.map((prescription) => prescription.medicine).join(" "),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [recordSearch, recordTypeFilter, sortedRecords]);
   const selectedRecord = useMemo(
     () =>
-      sortedRecords.find((record) => record._id === selectedRecordId) ??
-      sortedRecords[0] ??
+      filteredRecords.find((record) => record._id === selectedRecordId) ??
+      filteredRecords[0] ??
       null,
-    [selectedRecordId, sortedRecords],
+    [filteredRecords, selectedRecordId],
   );
   const latestAppointment = recordsView?.appointments[0] ?? null;
 
@@ -145,43 +200,83 @@ export default function PatientRecordsPage() {
       onSignOut={handleSignOut}
     >
       <div className="min-h-full bg-[#f7f2e8]">
-        <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
+        <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] px-6 py-7 text-white sm:px-8">
+          <div className="pointer-events-none absolute -right-24 top-0 size-72 rounded-full bg-secondary/20 blur-3xl" />
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Records
+              <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+                {t.eyebrow}
               </p>
-              <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-                Your health documents
+              <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
+                {t.title}
               </h1>
-              <p className="mt-2 max-w-2xl text-base leading-7 text-muted-foreground">
-                Find doctor notes, prescriptions, certificates, and consultation history in one simple place.
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
+                {t.description}
               </p>
             </div>
-            <div className="rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm text-primary">
-              <p className="font-bold">Privacy protected</p>
-              <p className="mt-1 text-muted-foreground">Only notes shared for patients are shown here.</p>
+            <div className="relative rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white backdrop-blur">
+              <p className="font-bold">{t.privacyProtected}</p>
+              <p className="mt-1 text-white/70">
+                {t.privacyCopy}
+              </p>
             </div>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <RecordStat label="Doctor notes" value={noteCount} />
-            <RecordStat label="Prescriptions" value={prescriptionCount} />
-            <RecordStat label="Certificates" value={certificateCount} />
+            <RecordStat label={t.doctorNotes} value={noteCount} />
+            <RecordStat label={t.prescriptions} value={prescriptionCount} />
+            <RecordStat label={t.certificates} value={certificateCount} />
           </div>
         </section>
 
         <section className="grid min-h-[620px] lg:grid-cols-[360px_1fr]">
           <aside className="border-b border-[#12324d]/10 bg-[#fffdf8] px-6 py-6 sm:px-8 lg:border-r lg:border-b-0">
-            <SectionTitle title="Choose a record" />
+            <SectionTitle title={t.findDocument} />
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Tap one consultation to view its notes, prescriptions, or certificate.
+              {t.filterCopy}
             </p>
+
+            <div className="mt-5 flex h-12 items-center gap-3 rounded-2xl border border-[#12324d]/10 bg-white px-4">
+              <Search className="size-4 text-muted-foreground" />
+              <input
+                value={recordSearch}
+                onChange={(event) => setRecordSearch(event.target.value)}
+                placeholder={t.searchPlaceholder}
+                className="w-full bg-transparent text-sm outline-none"
+              />
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <RecordFilterButton
+                active={recordTypeFilter === "all"}
+                onClick={() => setRecordTypeFilter("all")}
+              >
+                {t.all}
+              </RecordFilterButton>
+              <RecordFilterButton
+                active={recordTypeFilter === "notes"}
+                onClick={() => setRecordTypeFilter("notes")}
+              >
+                {t.notes}
+              </RecordFilterButton>
+              <RecordFilterButton
+                active={recordTypeFilter === "prescriptions"}
+                onClick={() => setRecordTypeFilter("prescriptions")}
+              >
+                {t.rx}
+              </RecordFilterButton>
+              <RecordFilterButton
+                active={recordTypeFilter === "certificates"}
+                onClick={() => setRecordTypeFilter("certificates")}
+              >
+                {t.certificates}
+              </RecordFilterButton>
+            </div>
 
             {latestAppointment ? (
               <div className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4">
                 <p className="flex items-center gap-2 text-xs font-bold tracking-[0.14em] text-primary uppercase">
                   <CalendarDays className="size-4" />
-                  Latest visit
+                  {t.latestVisit}
                 </p>
                 <p className="mt-3 font-bold text-primary">
                   {latestAppointment.consultationLabel || latestAppointment.specializationName}
@@ -194,9 +289,9 @@ export default function PatientRecordsPage() {
 
             <div className="mt-5 space-y-3">
               {loading ? (
-                <EmptyState copy="Loading your records..." />
-              ) : sortedRecords.length ? (
-                sortedRecords.map((record) => (
+                <EmptyState copy={t.loadingRecords} />
+              ) : filteredRecords.length ? (
+                filteredRecords.map((record) => (
                   <RecordListButton
                     key={record._id}
                     record={record}
@@ -205,21 +300,21 @@ export default function PatientRecordsPage() {
                   />
                 ))
               ) : (
-                <EmptyState copy="No doctor notes have been shared yet." />
+                <EmptyState copy={t.noMatch} />
               )}
             </div>
           </aside>
 
           <main className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
             {loading ? (
-              <EmptyState copy="Loading your doctor notes..." />
+              <EmptyState copy={t.loadingRecords} />
             ) : selectedRecord ? (
-              <article className="overflow-hidden rounded-2xl border border-[#12324d]/10 bg-white shadow-sm">
+              <article className="overflow-hidden rounded-[28px] border border-[#12324d]/10 bg-white shadow-[0_24px_80px_-60px_rgba(8,43,69,0.95)]">
                 <div className="border-b border-[#12324d]/10 bg-[#fffdf8] px-5 py-5">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div>
                       <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-                        Selected record
+                      {t.patientPacket}
                       </p>
                       <h2 className="mt-2 text-2xl font-bold text-primary">
                         {selectedRecord.doctorName}
@@ -237,7 +332,7 @@ export default function PatientRecordsPage() {
                         disabled={!selectedRecord.prescriptions.length}
                       >
                         <Download className="size-4" />
-                        Prescription PDF
+                        {t.prescriptionPdf}
                       </Button>
                       <Button
                         type="button"
@@ -247,19 +342,22 @@ export default function PatientRecordsPage() {
                         disabled={!selectedRecord.medicalCertificate}
                       >
                         <Download className="size-4" />
-                        Certificate PDF
+                        {t.certificatePdf}
                       </Button>
                     </div>
                   </div>
                 </div>
 
                 <div className="grid gap-5 p-5">
-                  <PatientFriendlyNotice />
+                  <PatientFriendlyNotice
+                    title={t.reminderTitle}
+                    copy={t.reminderCopy}
+                  />
 
                   <RecordSection
                     icon={<FileText className="size-5" />}
-                    title="Doctor notes"
-                    description="The doctor’s patient-friendly summary and advice from your consultation."
+                    title={t.doctorNotes}
+                    description="The doctor's patient-friendly summary and advice from your consultation."
                   >
                     {selectedRecord.consultationSummary ? (
                       <RecordBlock label="Consultation summary" value={selectedRecord.consultationSummary} />
@@ -281,22 +379,54 @@ export default function PatientRecordsPage() {
 
                   <RecordSection
                     icon={<Pill className="size-5" />}
-                    title="Prescriptions"
+                    title={t.prescriptions}
                     description="Medicines and instructions shared by your doctor."
                   >
                     {selectedRecord.prescriptions.length ? (
-                      <div className="grid gap-3 md:grid-cols-2">
+                      <div className="overflow-hidden rounded-2xl border border-[#12324d]/10 bg-[#fffdf8]">
+                        <div className="flex items-center justify-between gap-3 border-b border-[#12324d]/10 bg-white px-4 py-3">
+                          <div>
+                            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+                              Rx order
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Follow exactly as instructed by your doctor.
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-secondary px-3 py-1 text-sm font-bold text-primary">
+                            {selectedRecord.prescriptions.length} item
+                            {selectedRecord.prescriptions.length === 1
+                              ? ""
+                              : "s"}
+                          </span>
+                        </div>
                         {selectedRecord.prescriptions.map((item, index) => (
                           <div
                             key={`${selectedRecord._id}-${item.medicine}-${index}`}
-                            className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4"
+                            className="grid gap-3 border-b border-[#12324d]/10 px-4 py-4 last:border-b-0 md:grid-cols-[56px_1fr]"
                           >
-                            <p className="text-lg font-bold text-primary">{item.medicine}</p>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                              {[item.dosage, item.instruction, item.duration]
-                                .filter(Boolean)
-                                .join(" / ") || "No extra instructions added."}
-                            </p>
+                            <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-lg font-black text-primary">
+                              Rx
+                            </div>
+                            <div>
+                              <p className="text-lg font-bold text-primary">
+                                {item.medicine}
+                              </p>
+                              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                <MiniInfo
+                                  label="Dosage"
+                                  value={item.dosage || "-"}
+                                />
+                                <MiniInfo
+                                  label="Duration"
+                                  value={item.duration || "-"}
+                                />
+                                <MiniInfo
+                                  label="Instruction"
+                                  value={item.instruction || "-"}
+                                />
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -309,23 +439,33 @@ export default function PatientRecordsPage() {
 
                   <RecordSection
                     icon={<FileBadge2 className="size-5" />}
-                    title="Medical certificate"
+                    title={t.medicalCertificate}
                     description="Formal certificate issued only when your doctor publishes one."
                   >
                     {selectedRecord.medicalCertificate ? (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                        <p className="font-bold text-primary">
-                          {selectedRecord.medicalCertificate.title || "Medical Certificate"}
-                        </p>
-                        <p className="mt-2 line-clamp-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">
-                          {selectedRecord.medicalCertificate.body ||
-                            "Issued by your doctor after consultation review."}
-                        </p>
-                        {selectedRecord.medicalCertificate.remarks ? (
-                          <p className="mt-3 rounded-lg bg-white/80 px-3 py-2 text-sm leading-6 text-emerald-900">
-                            Verification note: {selectedRecord.medicalCertificate.remarks}
+                      <div className="relative overflow-hidden rounded-2xl border border-emerald-200 bg-white px-5 py-5">
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-5xl font-black uppercase tracking-[0.2em] text-emerald-900/[0.035]">
+                          Click Klinik
+                        </div>
+                        <div className="relative">
+                          <p className="text-xs font-bold tracking-[0.18em] text-emerald-700 uppercase">
+                            Verified certificate
                           </p>
-                        ) : null}
+                          <h4 className="mt-2 text-xl font-bold text-primary">
+                            {selectedRecord.medicalCertificate.title ||
+                              "Medical Certificate"}
+                          </h4>
+                          <p className="mt-4 line-clamp-6 whitespace-pre-line rounded-xl border border-[#12324d]/10 bg-[#fcfaf5]/90 px-4 py-4 text-sm leading-7 text-muted-foreground">
+                            {selectedRecord.medicalCertificate.body ||
+                              "Issued by your doctor after consultation review."}
+                          </p>
+                          {selectedRecord.medicalCertificate.remarks ? (
+                            <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-900">
+                              Verification note:{" "}
+                              {selectedRecord.medicalCertificate.remarks}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     ) : (
                       <p className="rounded-xl border border-dashed border-[#12324d]/15 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
@@ -355,12 +495,37 @@ function SectionTitle({ title }: { title: string }) {
 
 function RecordStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3">
-      <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+    <div className="rounded-2xl border border-white/15 bg-white px-4 py-3 shadow-[0_18px_48px_-44px_rgba(8,43,69,0.9)]">
+      <p className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold text-primary">{value}</p>
     </div>
+  );
+}
+
+function RecordFilterButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "h-10 rounded-xl border text-sm font-bold transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-[#12324d]/10 bg-white text-primary hover:bg-secondary/20",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -382,7 +547,7 @@ function RecordListButton({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${
+      className={`w-full rounded-2xl border px-4 py-4 text-left shadow-[0_16px_44px_-42px_rgba(8,43,69,0.9)] transition-all hover:-translate-y-0.5 ${
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-[#12324d]/10 bg-white text-primary hover:border-primary/35"
@@ -399,7 +564,7 @@ function RecordListButton({
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {record.prescriptions.length ? (
-          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? "bg-white/15" : "bg-secondary/50"}`}>
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${active ? "bg-white/15" : "bg-secondary/70"}`}>
             RX
           </span>
         ) : null}
@@ -416,16 +581,21 @@ function RecordListButton({
   );
 }
 
-function PatientFriendlyNotice() {
+function PatientFriendlyNotice({
+  title,
+  copy,
+}: {
+  title: string;
+  copy: string;
+}) {
   return (
     <div className="rounded-2xl border border-[#12324d]/10 bg-[#e8f5ee] px-4 py-4">
       <div className="flex gap-3">
         <ShieldCheck className="mt-1 size-5 shrink-0 text-[#12734b]" />
         <div>
-          <p className="font-bold text-primary">Easy reminder</p>
+          <p className="font-bold text-primary">{title}</p>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Follow your doctor’s instructions. If symptoms become severe or urgent,
-            contact emergency services or go to the nearest hospital.
+            {copy}
           </p>
         </div>
       </div>
@@ -483,6 +653,19 @@ function RecordBlock({
         {label}
       </p>
       <p className="mt-2 whitespace-pre-line text-sm leading-6">{value}</p>
+    </div>
+  );
+}
+
+function MiniInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#12324d]/10 bg-white px-3 py-3">
+      <p className="text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-semibold leading-5 text-primary">
+        {value}
+      </p>
     </div>
   );
 }

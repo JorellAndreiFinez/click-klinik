@@ -22,6 +22,13 @@ type PhAddressFieldsProps = {
   };
 };
 
+type EstimatedPinAddressEvent = CustomEvent<{
+  region?: string;
+  province?: string;
+  cityMunicipality?: string;
+  barangay?: string;
+}>;
+
 export function PhAddressFields({ prefix = "", defaultValue }: PhAddressFieldsProps) {
   const [regions, setRegions] = useState<PsgcItem[]>([]);
   const [provinces, setProvinces] = useState<PsgcItem[]>([]);
@@ -146,6 +153,77 @@ export function PhAddressFields({ prefix = "", defaultValue }: PhAddressFieldsPr
       })
       .catch(() => setLoadingError("Unable to load barangays for this area."));
   }, [cityMunicipalityCode, defaultValue?.barangayCode]);
+
+  useEffect(() => {
+    const detail = {
+      regionName,
+      provinceName,
+      cityMunicipalityName,
+      barangayName,
+    };
+
+    window.dispatchEvent(
+      new CustomEvent("click-klinik-address-changed", { detail }),
+    );
+  }, [barangayName, cityMunicipalityName, provinceName, regionName]);
+
+  useEffect(() => {
+    function handlePinEstimate(event: Event) {
+      const { region, province, cityMunicipality, barangay } =
+        (event as EstimatedPinAddressEvent).detail ?? {};
+
+      const matchedRegion = findPsgcMatch(regions, region);
+      if (matchedRegion && matchedRegion.code !== regionCode) {
+        setRegionCode(matchedRegion.code);
+        setProvinceCode("");
+        setCityMunicipalityCode("");
+        setBarangayCode("");
+        setProvinces([]);
+        setCitiesMunicipalities([]);
+        setBarangays([]);
+        return;
+      }
+
+      const matchedProvince = findPsgcMatch(provinces, province);
+      if (matchedProvince && matchedProvince.code !== provinceCode) {
+        setProvinceCode(matchedProvince.code);
+        setCityMunicipalityCode("");
+        setBarangayCode("");
+        setCitiesMunicipalities([]);
+        setBarangays([]);
+        return;
+      }
+
+      const matchedCity = findPsgcMatch(citiesMunicipalities, cityMunicipality);
+      if (matchedCity && matchedCity.code !== cityMunicipalityCode) {
+        setCityMunicipalityCode(matchedCity.code);
+        setBarangayCode("");
+        setBarangays([]);
+        return;
+      }
+
+      const matchedBarangay = findPsgcMatch(barangays, barangay);
+      if (matchedBarangay && matchedBarangay.code !== barangayCode) {
+        setBarangayCode(matchedBarangay.code);
+      }
+    }
+
+    window.addEventListener("click-klinik-pin-address-estimated", handlePinEstimate);
+    return () =>
+      window.removeEventListener(
+        "click-klinik-pin-address-estimated",
+        handlePinEstimate,
+      );
+  }, [
+    barangayCode,
+    barangays,
+    citiesMunicipalities,
+    cityMunicipalityCode,
+    provinceCode,
+    provinces,
+    regionCode,
+    regions,
+  ]);
 
   const fieldName = (name: string) => `${prefix}${name}`;
 
@@ -273,6 +351,31 @@ export function PhAddressFields({ prefix = "", defaultValue }: PhAddressFieldsPr
       <input type="hidden" name={fieldName("location")} value={cityMunicipalityName} />
     </div>
   );
+}
+
+function findPsgcMatch(items: PsgcItem[], rawValue?: string) {
+  const value = normalizeLocationName(rawValue);
+  if (!value) {
+    return undefined;
+  }
+
+  return items.find((item) => {
+    const itemName = normalizeLocationName(item.name);
+    return itemName === value || itemName.includes(value) || value.includes(itemName);
+  });
+}
+
+function normalizeLocationName(value?: string) {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/\bcity of\b/g, "")
+    .replace(/\bbarangay\b/g, "")
+    .replace(/\bbrgy\b/g, "")
+    .replace(/\bprovince of\b/g, "")
+    .replace(/\bnational capital region\b/g, "ncr")
+    .replace(/\bmetro manila\b/g, "ncr")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function AddressField({

@@ -11,6 +11,8 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { PhAddressFields } from "@/components/forms/ph-address-fields";
 import { LocationPinPicker } from "@/components/forms/location-pin-picker";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   getMyPatientProfile,
@@ -20,6 +22,8 @@ import {
 
 export default function PatientProfilePage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientProfile;
   const configured = isFirebaseConfigured();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<PatientProfile | null>(null);
@@ -115,13 +119,13 @@ export default function PatientProfilePage() {
       <div className="min-h-full bg-[#f7f2e8]">
         <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-            Profile
+            {t.eyebrow}
           </p>
           <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-            Your patient information
+            {t.title}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Update the details doctors use to prepare safer teleconsultations. Email is read-only.
+            {t.description}
           </p>
         </section>
 
@@ -165,16 +169,16 @@ export default function PatientProfilePage() {
               });
             }}
           >
-            <ProfileCard title="Personal details">
-              <Field label="Email" value={profile.email} disabled />
+            <ProfileCard title={t.personal}>
+              <Field label={t.email} value={profile.email} disabled />
               <TwoCols>
-                <Field label="First name" value={profile.firstName} onChange={(value) => setProfile({ ...profile, firstName: value })} />
-                <Field label="Last name" value={profile.lastName} onChange={(value) => setProfile({ ...profile, lastName: value })} />
+                <Field label={t.firstName} value={profile.firstName} onChange={(value) => setProfile({ ...profile, firstName: value })} />
+                <Field label={t.lastName} value={profile.lastName} onChange={(value) => setProfile({ ...profile, lastName: value })} />
               </TwoCols>
               <TwoCols>
-                <Field label="Suffix" value={profile.suffix ?? ""} onChange={(value) => setProfile({ ...profile, suffix: value })} />
+                <Field label={t.suffix} value={profile.suffix ?? ""} onChange={(value) => setProfile({ ...profile, suffix: value })} />
                 <Field
-                  label="Mobile number"
+                  label={t.mobile}
                   value={profile.mobileNumber}
                   inputMode="tel"
                   maxLength={13}
@@ -182,47 +186,45 @@ export default function PatientProfilePage() {
                 />
               </TwoCols>
               <TwoCols>
-                <Field label="Birthday" type="date" value={toDateInput(profile.birthdate)} onChange={(value) => setProfile({ ...profile, birthdate: value })} />
+                <Field label={t.birthday} type="date" value={toDateInput(profile.birthdate)} onChange={(value) => setProfile({ ...profile, birthdate: value })} />
                 <label className="grid gap-2 text-sm font-semibold text-primary">
-                  Sex
+                  {t.sex}
                   <select
                     value={profile.sex}
                     onChange={(event) => setProfile({ ...profile, sex: event.target.value as PatientProfile["sex"] })}
                     className="h-11 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm outline-none"
                   >
-                    <option value="female">Female</option>
-                    <option value="male">Male</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
+                    <option value="female">{t.female}</option>
+                    <option value="male">{t.male}</option>
+                    <option value="prefer_not_to_say">{t.preferNot}</option>
                   </select>
                 </label>
               </TwoCols>
             </ProfileCard>
 
-            <ProfileCard title="Health details">
+            <ProfileCard title={t.health}>
               <TwoCols>
-                <Field label="Weight (kg)" type="number" value={String(profile.weightKg)} onChange={(value) => setProfile({ ...profile, weightKg: Number(value) })} />
-                <Field label="Height (cm)" type="number" value={String(profile.heightCm)} onChange={(value) => setProfile({ ...profile, heightCm: Number(value) })} />
+                <Field label={t.weight} type="number" value={String(profile.weightKg)} onChange={(value) => setProfile({ ...profile, weightKg: Number(value) })} />
+                <Field label={t.height} type="number" value={String(profile.heightCm)} onChange={(value) => setProfile({ ...profile, heightCm: Number(value) })} />
               </TwoCols>
               <TwoCols>
-                <Field label="Emergency contact" value={profile.emergencyContactName ?? ""} onChange={(value) => setProfile({ ...profile, emergencyContactName: value })} />
-                <Field label="Emergency number" value={profile.emergencyContactNumber ?? ""} onChange={(value) => setProfile({ ...profile, emergencyContactNumber: value })} />
+                <Field label={t.emergencyContact} value={profile.emergencyContactName ?? ""} onChange={(value) => setProfile({ ...profile, emergencyContactName: value })} />
+                <Field label={t.emergencyNumber} value={profile.emergencyContactNumber ?? ""} onChange={(value) => setProfile({ ...profile, emergencyContactNumber: value })} />
               </TwoCols>
-              <Field label="Allergies" value={profile.allergies.join(", ")} onChange={(value) => setProfile({ ...profile, allergies: splitItems(value) })} />
-              <Field label="Existing conditions" value={profile.existingConditions.join(", ")} onChange={(value) => setProfile({ ...profile, existingConditions: splitItems(value) })} />
-              <Field label="Current medications" value={profile.currentMedications.join(", ")} onChange={(value) => setProfile({ ...profile, currentMedications: splitItems(value) })} />
-              <TextArea label="Basic medical history" value={profile.basicMedicalHistory ?? ""} onChange={(value) => setProfile({ ...profile, basicMedicalHistory: value })} />
+              <Field label={t.allergies} value={profile.allergies.join(", ")} onChange={(value) => setProfile({ ...profile, allergies: splitItems(value) })} />
+              <Field label={t.conditions} value={profile.existingConditions.join(", ")} onChange={(value) => setProfile({ ...profile, existingConditions: splitItems(value) })} />
+              <Field label={t.medications} value={profile.currentMedications.join(", ")} onChange={(value) => setProfile({ ...profile, currentMedications: splitItems(value) })} />
+              <TextArea label={t.basicHistory} value={profile.basicMedicalHistory ?? ""} onChange={(value) => setProfile({ ...profile, basicMedicalHistory: value })} />
             </ProfileCard>
 
-            <ProfileCard title="Location">
+            <ProfileCard title={t.location}>
               {!hasSavedLocation ? (
                 <div className="rounded-xl border border-secondary/40 bg-secondary/10 px-4 py-3 text-sm leading-6 text-primary">
-                  No saved location found yet. Please choose your Philippine
-                  address, then save your profile so doctors can match care
-                  near your area.
+                  {t.noSavedLocation}
                 </div>
               ) : (
                 <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm leading-6 text-primary">
-                  Current saved location:{" "}
+                  {t.currentSavedLocation}{" "}
                   <strong>
                     {savedLocationParts.length > 0
                       ? savedLocationParts.join(", ")
@@ -247,7 +249,7 @@ export default function PatientProfilePage() {
             <div className="xl:col-span-2">
               <Button className="h-11 rounded-xl" disabled={saving} type="submit">
                 <Save className="size-4" />
-                {saving ? "Saving..." : "Save profile"}
+                {saving ? t.saving : t.save}
               </Button>
             </div>
           </form>

@@ -34,9 +34,13 @@ import {
   type HealthMonitoringSummary,
 } from "@/lib/health-monitoring-api";
 import { getMyPatientProfile, type PatientProfile } from "@/lib/patient-api";
+import { useLocale } from "@/features/localization/locale-provider";
+import { workspaceTranslations } from "@/features/localization/workspace-translations";
 
 export default function PatientPortalPage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = workspaceTranslations[locale].patientHome;
   const firebaseConfigured = isFirebaseConfigured();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -175,27 +179,39 @@ export default function PatientPortalPage() {
       onSignOut={handleSignOut}
     >
       <div className="min-h-full bg-[#f7f2e8]">
-        <header className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] px-6 py-7 text-white sm:px-8">
+          <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/25 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 left-1/2 h-24 w-96 -translate-x-1/2 rounded-t-full bg-white/5" />
+          <div className="relative grid gap-6 xl:grid-cols-[1fr_360px] xl:items-end">
             <div>
-              <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Home
+              <p className="text-xs font-bold tracking-[0.22em] text-secondary uppercase">
+                {t.eyebrow}
               </p>
-              <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-                Hi, {profile.firstName}. What do you need today?
+              <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-tight sm:text-4xl">
+                Hi, {profile.firstName}. {t.title}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Start a consultation, check your appointment, or open records
-                from your doctor.
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
+                {t.description}
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+              <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+                {t.glance}
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <HeroMetric label={t.active} value={activeAppointments.length} />
+                <HeroMetric label={t.records} value={receivedRecords.length} />
+                <HeroMetric
+                  label={t.logs}
+                  value={monitoringSummary?.logs.length ?? 0}
+                />
+              </div>
               {locationText ? (
-                <Badge variant="outline" className="h-9 rounded-full px-3">
-                  <MapPin className="size-3.5" />
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white">
+                  <MapPin className="size-4 text-secondary" />
                   {locationText}
-                </Badge>
+                </div>
               ) : null}
             </div>
           </div>
@@ -207,24 +223,23 @@ export default function PatientPortalPage() {
               <HomeAction
                 href="/patient/doctors"
                 icon={<Search className="size-5" />}
-                title="Find a doctor"
-                copy="Search by symptoms or specialization"
+                title={t.findDoctor}
+                copy={t.findDoctorCopy}
+                accent="gold"
               />
               <HomeAction
                 href="/patient/appointments"
                 icon={<CalendarDays className="size-5" />}
-                title="My appointments"
-                copy={`${activeAppointments.length} active consultation${activeAppointments.length === 1 ? "" : "s"}`}
+                title={t.appointments}
+                copy={t.appointmentsCopy(activeAppointments.length)}
+                accent="blue"
               />
               <HomeAction
                 href="/patient/records"
                 icon={<FileText className="size-5" />}
-                title="My records"
-                copy={
-                  receivedRecords.length
-                    ? `${receivedRecords.length} doctor record${receivedRecords.length === 1 ? "" : "s"} received`
-                    : "Notes and prescriptions"
-                }
+                title={t.myRecords}
+                copy={t.myRecordsCopy(receivedRecords.length)}
+                accent="green"
               />
             </div>
 
@@ -236,10 +251,10 @@ export default function PatientPortalPage() {
                   </span>
                   <div>
                     <h2 className="font-bold text-primary">
-                      Tell us your concern
+                      {t.concernTitle}
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      We will help match you with a relevant doctor type.
+                      {t.concernCopy}
                     </p>
                   </div>
                 </div>
@@ -248,7 +263,7 @@ export default function PatientPortalPage() {
                   value={doctorSearchNeed}
                   onChange={(event) => setDoctorSearchNeed(event.target.value)}
                   rows={3}
-                  placeholder="Example: diabetes checkup, cough for 3 days, chest pain"
+                  placeholder={t.concernPlaceholder}
                   className="mt-4 min-h-24 w-full rounded-xl border border-[#12324d]/12 bg-white px-4 py-3 text-sm outline-none focus:border-primary"
                 />
 
@@ -258,10 +273,10 @@ export default function PatientPortalPage() {
                     onClick={handleDoctorMatchSearch}
                   >
                     <Search className="size-4" />
-                    Find matched doctors
+                    {t.concernButton}
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Guidance only. For emergencies, go to the nearest hospital.
+                    {t.guidanceOnly}
                   </p>
                 </div>
               </div>
@@ -276,46 +291,46 @@ export default function PatientPortalPage() {
                   <h2 className="mt-2 text-xl font-bold text-primary">
                     {monitoringSummary?.trend
                       ? formatMonitoringTrend(monitoringSummary.trend)
-                      : "No home logs yet"}
+                      : t.monitoringTitle}
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                     {monitoringSummary?.summary ??
-                      "Add BP, glucose, temperature, oxygen, pulse, symptoms, or notes so doctors can review your trend before consultation."}
+                      t.monitoringCopy}
                   </p>
                 </div>
                 <Button asChild className="h-11 rounded-xl">
                   <Link href="/patient/monitoring">
                     <HeartPulse className="size-4" />
-                    Add health log
+                    {t.monitoringButton}
                   </Link>
                 </Button>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <MonitoringTile
-                  label="Latest BP"
+                  label={t.latestBp}
                   value={
                     monitoringSummary?.latestLog
-                      ? formatBp(monitoringSummary.latestLog)
-                      : "Not logged"
+                      ? formatBp(monitoringSummary.latestLog, t.notLogged)
+                      : t.notLogged
                   }
                 />
                 <MonitoringTile
-                  label="Temperature"
+                  label={t.temperature}
                   value={
                     typeof monitoringSummary?.latestLog?.temperatureC ===
                     "number"
                       ? `${monitoringSummary.latestLog.temperatureC} deg C`
-                      : "Not logged"
+                      : t.notLogged
                   }
                 />
                 <MonitoringTile
-                  label="Oxygen"
+                  label={t.oxygen}
                   value={
                     typeof monitoringSummary?.latestLog?.oxygenSaturation ===
                     "number"
                       ? `${monitoringSummary.latestLog.oxygenSaturation}%`
-                      : "Not logged"
+                      : t.notLogged
                   }
                 />
               </div>
@@ -329,11 +344,12 @@ export default function PatientPortalPage() {
 
             <div className="mt-6">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Your next step
+                {t.nextConsult}
               </p>
               {nextAppointment ? (
-                <article className="mt-3 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <article className="mt-3 overflow-hidden rounded-2xl border border-[#12324d]/10 bg-white shadow-[0_20px_55px_-42px_rgba(8,43,69,0.9)]">
+                  <div className="h-2 bg-gradient-to-r from-secondary via-[#38bdf8] to-[#12734b]" />
+                  <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <Badge variant="secondary">
                         {formatStatus(nextAppointment.status)}
@@ -350,7 +366,7 @@ export default function PatientPortalPage() {
                       <Button asChild className="h-11 rounded-xl">
                         <Link href="/patient/appointments">
                           <Video className="size-4" />
-                          Open appointment
+                          {t.openAppointments}
                         </Link>
                       </Button>
                     </div>
@@ -359,10 +375,10 @@ export default function PatientPortalPage() {
               ) : (
                 <div className="mt-3 rounded-xl border border-dashed border-[#12324d]/14 bg-white px-5 py-6">
                   <p className="font-semibold text-primary">
-                    No appointment booked yet.
+                    {t.nextConsultEmpty}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    You can find a doctor when you are ready.
+                    {t.findDoctorCopy}
                   </p>
                 </div>
               )}
@@ -372,26 +388,26 @@ export default function PatientPortalPage() {
           <aside className="bg-[#fcfaf5] px-6 py-6 sm:px-8">
             <section className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Care summary
+                {t.careSummary}
               </p>
               <div className="mt-4 space-y-4">
-                <SummaryRow label="Mobile" value={profile.mobileNumber} />
+                <SummaryRow label={t.mobile} value={profile.mobileNumber} />
                 <SummaryRow
-                  label="Allergies"
-                  value={profile.allergies.join(", ") || "None reported"}
+                  label={t.allergies}
+                  value={profile.allergies.join(", ") || t.noneReported}
                 />
                 <SummaryRow
-                  label="Conditions"
+                  label={t.conditions}
                   value={
-                    profile.existingConditions.join(", ") || "None reported"
+                    profile.existingConditions.join(", ") || t.noneReported
                   }
                 />
                 <SummaryRow
-                  label="Emergency contact"
+                  label={t.emergencyContact}
                   value={
                     profile.emergencyContactName
                       ? `${profile.emergencyContactName}${profile.emergencyContactNumber ? `, ${profile.emergencyContactNumber}` : ""}`
-                      : "Not added"
+                      : t.notAdded
                   }
                 />
               </div>
@@ -399,68 +415,81 @@ export default function PatientPortalPage() {
 
             <section className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Latest doctor record
+                {t.latestRecord}
               </p>
               {latestRecord ? (
-                <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
-                  <p className="font-semibold text-primary">
-                    {latestRecord.doctorName}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {latestRecord.specializationName}
-                  </p>
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                    {buildRecordPreview(latestRecord)}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {latestRecord.publicNote ? (
-                      <Badge variant="secondary">Doctor note</Badge>
-                    ) : null}
-                    {latestRecord.prescriptions.length ? (
-                      <Badge variant="secondary">Prescription</Badge>
-                    ) : null}
-                    {latestRecord.medicalCertificate ? (
-                      <Badge variant="secondary">Certificate</Badge>
-                    ) : null}
+                <div className="mt-4 overflow-hidden rounded-2xl border border-[#12324d]/10 bg-[#fffdf8]">
+                  <div className="border-b border-[#12324d]/10 bg-white px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
+                          {t.doctorPacket}
+                        </p>
+                        <p className="mt-2 font-bold text-primary">
+                          {latestRecord.doctorName}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {latestRecord.specializationName}
+                        </p>
+                      </div>
+                      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                        <FileText className="size-5" />
+                      </span>
+                    </div>
                   </div>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="mt-4 h-10 rounded-xl"
-                  >
-                    <Link href="/patient/records">Open records</Link>
-                  </Button>
+                  <div className="px-4 py-4">
+                    <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
+                      {buildRecordPreview(latestRecord, t.recordReady)}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {latestRecord.publicNote ? (
+                        <Badge variant="secondary">{t.doctorNote}</Badge>
+                      ) : null}
+                      {latestRecord.prescriptions.length ? (
+                        <Badge variant="secondary">{t.prescription}</Badge>
+                      ) : null}
+                      {latestRecord.medicalCertificate ? (
+                        <Badge variant="secondary">{t.certificate}</Badge>
+                      ) : null}
+                    </div>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="mt-4 h-10 rounded-xl"
+                    >
+                      <Link href="/patient/records">{t.latestRecordButton}</Link>
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <p className="mt-4 rounded-xl border border-dashed border-[#12324d]/12 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
-                  Doctor notes, prescriptions, and certificates will appear here
-                  after your consultation.
+                  {t.noRecord}
                 </p>
               )}
             </section>
 
             <section className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Quick links
+                {t.quickLinks}
               </p>
               <div className="mt-4 grid gap-2">
                 <SmallLink
                   href="/patient/appointments"
                   icon={<CalendarDays className="size-4" />}
                 >
-                  View appointments
+                  {t.viewAppointments}
                 </SmallLink>
                 <SmallLink
                   href="/patient/records"
                   icon={<FileText className="size-4" />}
                 >
-                  View records
+                  {t.viewRecords}
                 </SmallLink>
                 <SmallLink
                   href="/privacy"
                   icon={<ShieldCheck className="size-4" />}
                 >
-                  Privacy notice
+                  {t.privacyNotice}
                 </SmallLink>
               </div>
             </section>
@@ -476,18 +505,28 @@ function HomeAction({
   icon,
   title,
   copy,
+  accent,
 }: {
   href: string;
   icon: ReactNode;
   title: string;
   copy: string;
+  accent: "blue" | "gold" | "green";
 }) {
+  const accentClass = {
+    blue: "from-[#e0f2fe] to-white text-primary",
+    gold: "from-secondary/50 to-white text-primary",
+    green: "from-emerald-100 to-white text-emerald-900",
+  }[accent];
+
   return (
     <Link
       href={href}
-      className="group rounded-xl border border-[#12324d]/10 bg-white px-4 py-5 transition-colors hover:bg-[#f7f2e8]"
+      className="group rounded-2xl border border-[#12324d]/10 bg-white px-4 py-5 shadow-[0_18px_48px_-42px_rgba(8,43,69,0.85)] transition-all hover:-translate-y-0.5 hover:border-primary/25"
     >
-      <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary">
+      <span
+        className={`flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br ${accentClass}`}
+      >
         {icon}
       </span>
       <div className="mt-5 flex items-end justify-between gap-3">
@@ -498,6 +537,17 @@ function HomeAction({
         <ChevronRight className="size-4 shrink-0 text-primary/35 transition-transform group-hover:translate-x-0.5" />
       </div>
     </Link>
+  );
+}
+
+function HeroMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-white/15 bg-white/10 px-3 py-3">
+      <p className="text-[10px] font-bold tracking-[0.14em] text-white/60 uppercase">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+    </div>
   );
 }
 
@@ -548,11 +598,14 @@ function formatMonitoringTrend(trend: string) {
   return trend.replace(/_/g, " ");
 }
 
-function formatBp(log: { systolicBp?: number; diastolicBp?: number }) {
+function formatBp(
+  log: { systolicBp?: number; diastolicBp?: number },
+  fallback: string,
+) {
   return typeof log.systolicBp === "number" &&
     typeof log.diastolicBp === "number"
     ? `${log.systolicBp}/${log.diastolicBp} mmHg`
-    : "Not logged";
+    : fallback;
 }
 
 function formatStatus(value: Appointment["status"]) {
@@ -574,7 +627,7 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-function buildRecordPreview(record: MedicalRecord) {
+function buildRecordPreview(record: MedicalRecord, fallback: string) {
   const parts = [
     record.publicNote ? `Note: ${record.publicNote}` : "",
     record.recommendations ? `Advice: ${record.recommendations}` : "",
@@ -584,5 +637,5 @@ function buildRecordPreview(record: MedicalRecord) {
     record.medicalCertificate ? "Medical certificate issued" : "",
   ].filter(Boolean);
 
-  return parts.join(" / ") || "A doctor record is ready for review.";
+  return parts.join(" / ") || fallback;
 }

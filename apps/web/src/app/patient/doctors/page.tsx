@@ -20,6 +20,8 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import {
   discoverDoctors,
   getPublicDoctorAvailability,
@@ -68,6 +70,8 @@ export default function PatientDoctorsPage() {
 function PatientDoctorsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientDoctors;
   const firebaseConfigured = isFirebaseConfigured();
   const initialSymptom = searchParams.get("symptom") ?? "";
   const initialLocation = searchParams.get("location") ?? "";
@@ -347,13 +351,13 @@ function PatientDoctorsPageContent() {
         <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
           <div className="max-w-3xl">
             <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Find care
+              {t.eyebrow}
             </p>
             <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-              Search for a doctor
+              {t.title}
             </h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Choose a specialization or describe your concern. We will show approved doctors you can book online.
+              {t.description}
             </p>
           </div>
         </section>
@@ -361,11 +365,11 @@ function PatientDoctorsPageContent() {
         <section className="grid xl:grid-cols-[340px_1fr]">
           <aside className="border-r border-[#12324d]/10 bg-[#fcfaf5] px-6 py-5 sm:px-8">
             <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Filters
+              {t.filters}
             </p>
             <div className="mt-4 space-y-4">
               <label className="grid gap-2">
-                <span className="text-sm font-semibold">Your location</span>
+                <span className="text-sm font-semibold">{t.yourLocation}</span>
                 <div className="flex h-11 items-center gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4">
                   <Crosshair className="size-4 text-muted-foreground" />
                   <input
@@ -381,7 +385,7 @@ function PatientDoctorsPageContent() {
               </label>
 
               <label className="grid gap-2">
-                <span className="text-sm font-semibold">Search doctor</span>
+                <span className="text-sm font-semibold">{t.searchDoctor}</span>
                 <div className="flex h-11 items-center gap-3 rounded-xl border border-[#12324d]/10 bg-white px-4">
                   <Search className="size-4 text-muted-foreground" />
                   <input
@@ -399,7 +403,7 @@ function PatientDoctorsPageContent() {
               </label>
 
               <label className="grid gap-2">
-                <span className="text-sm font-semibold">Medical need / symptom</span>
+                <span className="text-sm font-semibold">{t.symptom}</span>
                 <textarea
                   value={symptom}
                   onChange={(event) => {
@@ -421,11 +425,11 @@ function PatientDoctorsPageContent() {
                 disabled={aiLoading}
               >
                 <Sparkles className="size-4" />
-                {aiLoading ? "Matching doctors..." : "Ask AI to match doctors"}
+                {aiLoading ? t.matchingDoctors : t.askAi}
               </Button>
 
               <label className="grid gap-2">
-                <span className="text-sm font-semibold">Specialization</span>
+                <span className="text-sm font-semibold">{t.specialization}</span>
                 <select
                   value={specializationCode}
                   onChange={(event) => {
@@ -457,7 +461,7 @@ function PatientDoctorsPageContent() {
                   setSpecializationCode("");
                 }}
               >
-                Reset filters
+                {t.reset}
               </Button>
             </div>
           </aside>
@@ -540,7 +544,7 @@ function PatientDoctorsPageContent() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-                      AI recommendation
+                      {t.aiRecommendation}
                     </p>
                     <p className="mt-1 font-semibold">
                       {recommendation.specializationName}
@@ -553,7 +557,7 @@ function PatientDoctorsPageContent() {
                 {recommendation.relatedSpecializations.length > 1 ? (
                   <div className="mt-3">
                     <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
-                      Related doctor types
+                      {t.relatedTypes}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {recommendation.relatedSpecializations.map((item) => (
@@ -603,7 +607,7 @@ function PatientDoctorsPageContent() {
 
             {loadingDoctors ? (
               <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-4 py-6 text-sm text-muted-foreground">
-                Loading available doctors...
+                {t.loadingDoctors}
               </div>
             ) : null}
 
@@ -654,7 +658,7 @@ function PatientDoctorsPageContent() {
                         </span>
                         <span className="inline-flex items-center gap-2">
                           <CalendarDays className="size-4 text-primary" />
-                          Next available slots
+                          {t.nextSlots}
                         </span>
                       </div>
 
@@ -669,11 +673,13 @@ function PatientDoctorsPageContent() {
                           ) : (
                             <ChevronDown className="size-4" />
                           )}
-                          View availability
+                          {expandedDoctorId === doctorItem._id
+                            ? t.hideAvailability
+                            : t.viewAvailability}
                         </Button>
                         <Button asChild className="h-11 rounded-xl">
                           <Link href={`/patient/doctors/${doctorItem._id}/calendar`}>
-                            Book consult
+                            {t.bookConsult}
                           </Link>
                         </Button>
                       </div>
@@ -684,7 +690,7 @@ function PatientDoctorsPageContent() {
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-                              Availability
+                              {t.availability}
                             </p>
                             <p className="mt-1 font-semibold">
                               Next 7 days for Dr. {doctorItem.lastName}
@@ -728,7 +734,7 @@ function PatientDoctorsPageContent() {
 
                             {(availabilityByDoctor[doctorItem._id] ?? []).length === 0 ? (
                               <div className="rounded-xl border border-dashed border-[#12324d]/12 bg-white px-4 py-6 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">
-                                No upcoming available slots yet for this doctor.
+                                {t.noUpcomingSlots}
                               </div>
                             ) : null}
                           </div>
@@ -740,7 +746,7 @@ function PatientDoctorsPageContent() {
 
                 {rankedDoctors.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-white px-4 py-8 text-center text-sm text-muted-foreground">
-                    No matching doctors found. Try another symptom, keyword, or specialization.
+                    {t.noMatches}
                   </div>
                 ) : null}
               </div>
@@ -753,12 +759,15 @@ function PatientDoctorsPageContent() {
 }
 
 function DoctorsPageFallback() {
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientDoctors;
+
   return (
     <main className="clinic-grid flex min-h-screen items-center justify-center px-5">
       <div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center">
         <HeartPulse className="mx-auto size-10 text-primary" />
         <p className="mt-5 text-sm text-muted-foreground">
-          Loading doctor discovery...
+          {t.loadingDoctors}
         </p>
       </div>
     </main>

@@ -64,8 +64,9 @@ export default function DoctorNotesPage() {
 
     void getMyDoctorAppointments(user)
       .then((result) => {
-        setAppointments(result);
-        setSelectedAppointmentId(result[0]?._id ?? "");
+        const activeConsultations = result.filter(isActiveConsultationForNotes);
+        setAppointments(activeConsultations);
+        setSelectedAppointmentId(activeConsultations[0]?._id ?? "");
         setLoading(false);
       })
       .catch((error: unknown) => {
@@ -417,26 +418,26 @@ export default function DoctorNotesPage() {
 
   return (
     <div className="min-h-full bg-[#f7f2e8]">
-      <section className="border-b border-[#12324d]/10 bg-white">
+      <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] text-white">
+        <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/20 blur-3xl" />
         <div className="grid lg:grid-cols-[1fr_360px]">
-          <div className="px-6 py-6 sm:px-8">
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+          <div className="relative px-6 py-7 sm:px-8">
+            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
               Notes & prescriptions
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-              Write patient notes clearly.
+            <h1 className="mt-2 text-3xl font-bold leading-tight text-white sm:text-4xl">
+              Document the consultation.
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Choose one consultation, review the patient concern, then save notes
-              and prescriptions in one simple flow.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
+              Review triage, save doctor notes, update prescriptions, and issue verified documents from one guided workspace.
             </p>
           </div>
-          <div className="border-t border-[#12324d]/10 px-6 py-5 sm:px-8 lg:border-t-0 lg:border-l">
-            <p className="flex items-center gap-2 text-xs font-bold tracking-[0.16em] text-primary uppercase">
+          <div className="relative border-t border-white/15 px-6 py-6 sm:px-8 lg:border-t-0 lg:border-l">
+            <p className="flex items-center gap-2 text-xs font-bold tracking-[0.16em] text-secondary uppercase">
               <ShieldCheck className="size-4" />
               Safety reminder
             </p>
-            <div className="mt-3 rounded-xl bg-[#e8f5ee] px-4 py-3 text-sm text-[#12734b]">
+            <div className="mt-4 rounded-2xl border border-white/15 bg-white/8 px-4 py-4 text-sm leading-6 text-white/75">
               This tool provides guidance only and does not replace professional medical advice.
             </div>
           </div>
@@ -446,12 +447,12 @@ export default function DoctorNotesPage() {
       <section className="grid xl:grid-cols-[1fr_360px]">
         <main className="min-w-0 bg-[#fffdf8] px-6 py-6 sm:px-8">
           {message ? (
-            <div className="mb-4 rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-3 text-sm text-primary">
+            <div className="mb-4 rounded-2xl border border-primary/15 bg-primary/[0.04] px-4 py-3 text-sm text-primary">
               {message}
             </div>
           ) : null}
 
-          <section className="rounded-xl border border-[#12324d]/10 bg-white p-5">
+          <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <StepHeader
               number="1"
               title="Select consultation"
@@ -480,14 +481,14 @@ export default function DoctorNotesPage() {
           </section>
 
           {loading ? (
-            <div className="mt-5 rounded-xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground">
+            <div className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white px-5 py-10 text-sm text-muted-foreground shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
               Loading consultation notes...
             </div>
           ) : null}
 
           {!loading && selectedAppointment ? (
             <div className="mt-5 space-y-5">
-              <section className="rounded-xl border border-[#12324d]/10 bg-white p-5">
+              <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
                 <StepHeader
                   number="2"
                   title="Review patient triage"
@@ -547,7 +548,7 @@ export default function DoctorNotesPage() {
                 )}
               </section>
 
-              <section className="rounded-xl border border-[#12324d]/10 bg-white p-5">
+              <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
                 <EditableHeader
                   number="3"
                   title="Write consultation notes"
@@ -604,7 +605,7 @@ export default function DoctorNotesPage() {
                 ) : null}
               </section>
 
-              <section className="rounded-xl border border-[#12324d]/10 bg-white p-5">
+              <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
                 <StepHeader
                   number="H"
                   title="Patient consultation history"
@@ -647,7 +648,7 @@ export default function DoctorNotesPage() {
         </main>
 
         <aside className="border-t border-[#12324d]/10 bg-[#fcfaf5] px-6 py-6 sm:px-8 xl:sticky xl:top-0 xl:h-screen xl:overflow-auto xl:border-t-0 xl:border-l">
-          <section className="rounded-xl border border-[#12324d]/10 bg-white p-5">
+          <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
                 <ClipboardPenLine className="size-5" />
@@ -670,14 +671,14 @@ export default function DoctorNotesPage() {
             </p>
           </section>
 
-          <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white p-5">
+          <section className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex size-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
                   <Pill className="size-5" />
                 </span>
                 <div>
-                  <p className="font-bold text-primary">4. Prescription</p>
+                  <p className="font-bold text-primary">Prescription</p>
                   <p className="text-sm text-muted-foreground">
                     Optional medication instructions
                   </p>
@@ -822,7 +823,7 @@ export default function DoctorNotesPage() {
             ) : null}
           </section>
 
-          <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white p-5">
+          <section className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#f7f2e8] text-primary">
                 <Pill className="size-5" />
@@ -891,10 +892,10 @@ export default function DoctorNotesPage() {
             </div>
           </section>
 
-          <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white p-5">
+          <section className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <EditableIconHeader
               icon={<PenLine className="size-5" />}
-              title="5. Digital doctor signature"
+              title="Digital doctor signature"
               copy="Draw once, then save with the record for document verification."
               isEditing={editingSection === "signature"}
               onEdit={() => setEditingSection("signature")}
@@ -970,10 +971,10 @@ export default function DoctorNotesPage() {
             ) : null}
           </section>
 
-          <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white p-5">
+          <section className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <EditableIconHeader
               icon={<FileBadge2 className="size-5" />}
-              title="6. Medical certificate"
+              title="Medical certificate"
               copy="Available only when the patient ordered a certificate add-on."
               isEditing={editingSection === "certificate"}
               onEdit={() => setEditingSection("certificate")}
@@ -1292,6 +1293,10 @@ function createPrescription(item?: PrescriptionItem): EditablePrescription {
     instruction: item?.instruction ?? "",
     duration: item?.duration ?? "",
   };
+}
+
+function isActiveConsultationForNotes(appointment: Appointment) {
+  return ["booked", "confirmed", "active_consultation"].includes(appointment.status);
 }
 
 function isMedicalCertificateAddOn(addOn: Appointment["addOns"][number]) {

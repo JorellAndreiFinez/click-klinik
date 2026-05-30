@@ -1,15 +1,20 @@
 "use client";
 
+import type { HTMLAttributes } from "react";
 import { Languages } from "lucide-react";
 
 import { useLocale } from "./locale-provider";
 import { localeOptions, type Locale } from "./translations";
 
-export function LanguageSelector() {
+export function LanguageSelector({
+  className = "",
+}: {
+  className?: HTMLAttributes<HTMLLabelElement>["className"];
+}) {
   const { locale, setLocale } = useLocale();
 
   return (
-    <label className="language-picker">
+    <label className={`language-picker ${className}`.trim()}>
       <Languages className="size-4 shrink-0" aria-hidden="true" />
       <span className="sr-only">Select language</span>
       <select

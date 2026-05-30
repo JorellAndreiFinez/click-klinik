@@ -129,6 +129,8 @@ export type DoctorPayout = {
   paidAt?: string;
   refundRequestedAt?: string;
   refundReason?: string;
+  payoutProviderPayoutId?: string;
+  payoutProviderStatus?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -139,6 +141,7 @@ export type DoctorPayoutSummary = {
     platformCommissionPhp: number;
     doctorPayoutPhp: number;
     availablePayoutPhp: number;
+    paidOutPayoutPhp: number;
     pendingPayoutPhp: number;
     refundedPhp: number;
   };

@@ -25,6 +25,8 @@ import {
   getBookingAddOnOptions,
   getBookingConsultationOptions,
 } from "@/features/appointments/booking-catalog";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import { createAppointment } from "@/lib/appointments-api";
 import {
   getPublicDoctorAvailability,
@@ -64,6 +66,8 @@ type TriageForm = {
 export default function PatientDoctorCalendarPage() {
   const params = useParams<{ doctorId: string }>();
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientBooking;
   const configured = isFirebaseConfigured();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<PatientProfile | null>(null);
@@ -159,6 +163,47 @@ export default function PatientDoctorCalendarPage() {
     });
   }, [configured, params.doctorId, router]);
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let active = true;
+    const refresh = async () => {
+      try {
+        const currentSelectedSlot = expandAvailabilityToHalfHourSlots(slots).find(
+          (slot) => slot.id === selectedSlotId,
+        );
+        const latestSlots = await refreshAvailabilityForBooking();
+        if (!active || !currentSelectedSlot) {
+          return;
+        }
+
+        const stillAvailable = latestSlots.some(
+          (slot) =>
+            slot.startAt === currentSelectedSlot.startAt &&
+            slot.endAt === currentSelectedSlot.endAt &&
+            !isPastBookableSlot(slot),
+        );
+
+        if (!stillAvailable) {
+          setSelectedSlotId("");
+        }
+      } catch {
+        // Keep the current view if a background refresh fails.
+      }
+    };
+
+    window.addEventListener("focus", refresh);
+    const intervalId = window.setInterval(refresh, 30000);
+
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refresh);
+      window.clearInterval(intervalId);
+    };
+  }, [selectedSlotId, slots, user]);
+
   async function handleSignOut() {
     if (!configured) {
       router.replace("/auth");
@@ -169,12 +214,25 @@ export default function PatientDoctorCalendarPage() {
     router.replace("/auth");
   }
 
+  async function refreshAvailabilityForBooking(): Promise<BookableTimeSlot[]> {
+    const from = new Date();
+    const to = new Date();
+    to.setDate(to.getDate() + 59);
+    const latestAvailability = await getPublicDoctorAvailability(params.doctorId, {
+      from: toDateOnly(from),
+      to: toDateOnly(to),
+    });
+
+    setSlots(latestAvailability);
+    return expandAvailabilityToHalfHourSlots(latestAvailability);
+  }
+
   async function handleBook() {
     if (!user || !doctor || !selectedSlotId) {
       return;
     }
 
-    const selectedSlot = generatedSlots.find((slot) => slot.id === selectedSlotId);
+    let selectedSlot = generatedSlots.find((slot) => slot.id === selectedSlotId);
     if (!selectedSlot) {
       return;
     }
@@ -193,6 +251,25 @@ export default function PatientDoctorCalendarPage() {
     }
 
     try {
+      const latestSlots = await refreshAvailabilityForBooking();
+      const latestSelectedSlot = latestSlots.find(
+        (slot) =>
+          slot.startAt === selectedSlot?.startAt &&
+          slot.endAt === selectedSlot?.endAt &&
+          !isPastBookableSlot(slot),
+      );
+
+      if (!latestSelectedSlot) {
+        setSelectedSlotId("");
+        setActionError(
+          "That 30-minute time slot was just taken or is no longer available. Please choose another time.",
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      selectedSlot = latestSelectedSlot;
+
       const appointment = await createAppointment(user, {
         doctorId: doctor._id,
         scheduleSlotId: selectedSlot.scheduleSlotId,
@@ -286,19 +363,19 @@ export default function PatientDoctorCalendarPage() {
         <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
           <div className="max-w-3xl">
             <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Book appointment
+              {t.eyebrow}
             </p>
             <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
               {bookingStage === "triage"
-                ? "Complete triage first"
+                ? t.triageTitle
                 : doctor
-                  ? `Book with Dr. ${doctor.lastName}`
-                  : "Choose a time slot"}
+                  ? t.bookWith(doctor.lastName)
+                  : t.chooseSlotTitle}
             </h1>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {bookingStage === "triage"
-                ? "Answer a short intake form so the doctor can prepare before your teleconsultation."
-                : "Pick one available 30-minute slot, review the fee, then confirm your teleconsultation."}
+                ? t.triageDescription
+                : t.bookingDescription}
             </p>
           </div>
         </section>
@@ -339,7 +416,7 @@ export default function PatientDoctorCalendarPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                      Available dates
+                      {t.availableDates}
                     </p>
                     <p className="mt-1 text-sm font-bold text-primary">
                       {formatCalendarMonth(calendarMonth)}
@@ -1223,10 +1300,12 @@ function CalendarDateButton({
 }
 
 function toDateOnly(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 function formatAppointmentDate(value: string) {
@@ -1234,6 +1313,7 @@ function formatAppointmentDate(value: string) {
     weekday: "long",
     month: "short",
     day: "numeric",
+    timeZone: "Asia/Manila",
   }).format(new Date(value));
 }
 
@@ -1245,6 +1325,7 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-PH", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "Asia/Manila",
   }).format(new Date(value));
 }
 
@@ -1375,7 +1456,8 @@ function getTriageStepForError(error: string): TriageStep {
 }
 
 function startOfMonth(date: Date): Date {
-  const next = new Date(date);
+  const [year, month] = toDateOnly(date).split("-").map(Number);
+  const next = new Date(year, month - 1, 1);
   next.setDate(1);
   next.setHours(0, 0, 0, 0);
   return next;

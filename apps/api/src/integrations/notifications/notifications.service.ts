@@ -114,7 +114,10 @@ export class NotificationsService {
     const email =
       typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
     const [patient, doctor] = await Promise.all([
-      this.patientModel.findOne({ firebaseUid: user.uid }).select(['_id']).exec(),
+      this.patientModel
+        .findOne({ $or: [{ firebaseUid: user.uid }, { email }] })
+        .select(['_id'])
+        .exec(),
       this.doctorModel
         .findOne({
           $or: [{ firebaseUid: user.uid }, { professionalEmail: email }],

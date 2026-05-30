@@ -8,6 +8,8 @@ import { PhAddressFields } from "@/components/forms/ph-address-fields";
 import { LocationPinPicker } from "@/components/forms/location-pin-picker";
 import { Button } from "@/components/ui/button";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import {
   saveMyDoctorProfile,
   type DoctorApplication,
@@ -17,6 +19,8 @@ const suffixes = ["MD", "DO", "RPsy", "RPT", "Other"] as const;
 
 export default function DoctorProfilePage() {
   const { user, doctor } = useDoctorWorkspace();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].doctorProfile;
   const [profile, setProfile] = useState<DoctorApplication | null>(doctor);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -99,7 +103,7 @@ export default function DoctorProfilePage() {
         credentialReviewConsent: true,
       });
       setProfile(saved);
-      setMessage("Profile updated.");
+      setMessage(`${t.save}d.`);
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "Unable to save profile.");
     } finally {
@@ -113,13 +117,13 @@ export default function DoctorProfilePage() {
     <div className="min-h-full bg-[#f7f2e8]">
       <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-          Profile
+          {t.eyebrow}
         </p>
         <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-          Your doctor information
+          {t.title}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Update your public doctor details and clinic information. Email is read-only.
+          {t.description}
         </p>
       </section>
 
@@ -131,15 +135,15 @@ export default function DoctorProfilePage() {
         ) : null}
 
         <form className="grid gap-5 xl:grid-cols-2" onSubmit={handleSave}>
-          <ProfileCard title="Professional details">
-            <Field label="Professional email" value={profile.professionalEmail} disabled />
+          <ProfileCard title={t.professional}>
+            <Field label={t.professionalEmail} value={profile.professionalEmail} disabled />
             <TwoCols>
-              <Field label="First name" value={profile.firstName} onChange={(value) => setProfile({ ...profile, firstName: value })} />
-              <Field label="Last name" value={profile.lastName} onChange={(value) => setProfile({ ...profile, lastName: value })} />
+              <Field label={t.firstName} value={profile.firstName} onChange={(value) => setProfile({ ...profile, firstName: value })} />
+              <Field label={t.lastName} value={profile.lastName} onChange={(value) => setProfile({ ...profile, lastName: value })} />
             </TwoCols>
             <TwoCols>
               <label className="grid gap-2 text-sm font-semibold text-primary">
-                Suffix
+                {t.suffix}
                 <select
                   value={suffixes.includes(profile.suffix as (typeof suffixes)[number]) ? profile.suffix : "Other"}
                   onChange={(event) => setProfile({ ...profile, suffix: event.target.value })}
@@ -151,7 +155,7 @@ export default function DoctorProfilePage() {
                 </select>
               </label>
               <Field
-                label="Mobile number"
+                label={t.mobile}
                 value={profile.mobileNumber}
                 inputMode="tel"
                 maxLength={13}
@@ -159,41 +163,39 @@ export default function DoctorProfilePage() {
               />
             </TwoCols>
             <TwoCols>
-              <Field label="PRC license number" value={profile.prcLicenseNumber} onChange={(value) => setProfile({ ...profile, prcLicenseNumber: value })} />
-              <Field label="Years of practice" type="number" value={String(profile.yearsOfExperience)} onChange={(value) => setProfile({ ...profile, yearsOfExperience: Number(value) })} />
+              <Field label={t.prc} value={profile.prcLicenseNumber} onChange={(value) => setProfile({ ...profile, prcLicenseNumber: value })} />
+              <Field label={t.years} type="number" value={String(profile.yearsOfExperience)} onChange={(value) => setProfile({ ...profile, yearsOfExperience: Number(value) })} />
             </TwoCols>
           </ProfileCard>
 
-          <ProfileCard title="Public profile">
+          <ProfileCard title={t.publicProfile}>
             <TwoCols>
-              <Field label="Specialization code" value={profile.specializationCode} onChange={(value) => setProfile({ ...profile, specializationCode: value })} />
-              <Field label="Specialization name" value={profile.specializationName} disabled />
+              <Field label={t.specializationCode} value={profile.specializationCode} onChange={(value) => setProfile({ ...profile, specializationCode: value })} />
+              <Field label={t.specializationName} value={profile.specializationName} disabled />
             </TwoCols>
-            <Field label="Clinic or hospital" value={profile.clinicOrHospital ?? ""} onChange={(value) => setProfile({ ...profile, clinicOrHospital: value })} />
-            <TextArea label="Bio" value={profile.bio} onChange={(value) => setProfile({ ...profile, bio: value })} />
+            <Field label={t.clinic} value={profile.clinicOrHospital ?? ""} onChange={(value) => setProfile({ ...profile, clinicOrHospital: value })} />
+            <TextArea label={t.bio} value={profile.bio} onChange={(value) => setProfile({ ...profile, bio: value })} />
             <label className="flex items-center gap-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm font-semibold text-primary">
               <input
                 type="checkbox"
                 checked={profile.displayOnPublicWebsite}
                 onChange={(event) => setProfile({ ...profile, displayOnPublicWebsite: event.target.checked })}
               />
-              Show my profile on public doctor search
+              {t.showPublic}
             </label>
           </ProfileCard>
 
-          <ProfileCard title="Location">
+          <ProfileCard title={t.location}>
             <p className="text-sm leading-6 text-muted-foreground">
-              Select your clinic location using the official Philippine PSGC address list.
-              NCR will automatically skip province selection.
+              {t.locationCopy}
             </p>
             {!hasSavedLocation ? (
               <div className="rounded-xl border border-secondary/40 bg-secondary/10 px-4 py-3 text-sm leading-6 text-primary">
-                No saved clinic location found yet. Please choose your
-                Philippine clinic address, then save your profile.
+                {t.noSavedLocation}
               </div>
             ) : (
               <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3 text-sm leading-6 text-primary">
-                Current saved clinic location:{" "}
+                {t.currentSavedLocation}{" "}
                 <strong>
                   {savedLocationParts.length > 0
                     ? savedLocationParts.join(", ")
@@ -212,15 +214,15 @@ export default function DoctorProfilePage() {
             <LocationPinPicker
               defaultLatitude={profile.latitude}
               defaultLongitude={profile.longitude}
-              title="Clinic map pin"
-              description="Pin the exact clinic or hospital entrance so physical-visit patients can open directions."
+              title={t.clinicMapPin}
+              description={t.clinicMapPinCopy}
             />
           </ProfileCard>
 
           <div className="xl:col-span-2">
             <Button className="h-11 rounded-xl" disabled={saving} type="submit">
               <Save className="size-4" />
-              {saving ? "Saving..." : "Save profile"}
+              {saving ? t.saving : t.save}
             </Button>
           </div>
         </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   CalendarClock,
   ClipboardCheck,
@@ -16,6 +17,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import {
   getMyDoctorAppointments,
   joinAppointment,
@@ -32,6 +35,8 @@ const sessionChecklist = [
 
 export default function DoctorSessionPage() {
   const { user } = useDoctorWorkspace();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].doctorSession;
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -93,7 +98,7 @@ export default function DoctorSessionPage() {
       } else if (activeAppointment.triage?.consultMethod === "cellular") {
         window.open(`tel:${activeAppointment.patientMobileNumber ?? ""}`, "_self");
       } else if (activeAppointment.triage?.consultMethod === "physical_visit") {
-        window.open(buildMapsDirectionsUrl(activeAppointment), "_blank", "noopener,noreferrer");
+        window.open(`/consultation-route/${activeAppointment._id}`, "_blank", "noopener,noreferrer");
       }
     } catch (error: unknown) {
       setActionError(
@@ -129,17 +134,18 @@ export default function DoctorSessionPage() {
 
   return (
     <div className="min-h-full bg-[#f7f2e8]">
-      <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
-        <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-          Consultation session
+      <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] px-6 py-7 text-white sm:px-8">
+        <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/20 blur-3xl" />
+        <p className="relative text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+          {t.eyebrow}
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
+        <h1 className="relative mt-2 text-3xl font-bold leading-tight text-white sm:text-4xl">
           {activeAppointment
-            ? `Ready for ${activeAppointment.patientName}`
-            : "Waiting for the next booked teleconsult"}
+            ? t.titleOpen(activeAppointment.patientName)
+            : t.titleWaiting}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Join the active consultation, keep patient context visible, then finish with notes and prescriptions.
+        <p className="relative mt-3 max-w-2xl text-sm leading-6 text-white/75">
+          {t.description}
         </p>
       </section>
 
@@ -151,17 +157,17 @@ export default function DoctorSessionPage() {
       ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.42fr]">
-        <section className="rounded-xl border border-[#12324d]/10 bg-white p-5 sm:p-6">
+        <section className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)] sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Choose patient session
+                {t.queue}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pick the consultation you want to open or complete.
+                {t.queueCopy}
               </p>
             </div>
-            <Badge variant="outline">{sessionAppointments.length} active</Badge>
+            <Badge variant="outline">{sessionAppointments.length} {t.active}</Badge>
           </div>
 
           <div className="mt-4 grid gap-3">
@@ -172,8 +178,8 @@ export default function DoctorSessionPage() {
                 onClick={() => setSelectedAppointmentId(appointment._id)}
                 className={
                   selectedAppointmentId === appointment._id
-                    ? "rounded-xl border border-primary bg-primary/5 px-4 py-4 text-left"
-                    : "rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4 text-left"
+                    ? "rounded-2xl border border-primary bg-primary/5 px-4 py-4 text-left shadow-[0_16px_42px_-38px_rgba(8,43,69,0.8)]"
+                    : "rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:bg-primary/[0.03]"
                 }
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -193,8 +199,8 @@ export default function DoctorSessionPage() {
             ))}
             {sessionAppointments.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[#12324d]/10 bg-[#fcfaf5] px-4 py-8 text-center text-sm text-muted-foreground">
-                No active patient sessions yet.
-              </div>
+                {t.noActive}
+                </div>
             ) : null}
           </div>
 
@@ -213,14 +219,14 @@ export default function DoctorSessionPage() {
               disabled={!activeAppointment}
               onClick={() => void handleComplete()}
             >
-              Mark completed
+              {t.markCompleted}
             </Button>
           </div>
         </section>
 
-        <aside className="rounded-xl border border-[#12324d]/10 bg-white p-5">
+        <aside className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
           <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-            Session status
+            {t.currentSession}
           </p>
           <div className="mt-5 rounded-[1.5rem] border border-border bg-background p-5">
             <Badge variant="secondary">
@@ -245,13 +251,13 @@ export default function DoctorSessionPage() {
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="space-y-5">
-          <article className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+          <article className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)] sm:p-6">
             <div className="flex items-center gap-3">
               <span className="flex size-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
                 <UserRound className="size-5" />
               </span>
               <div>
-                <p className="font-bold">Active patient</p>
+                <p className="font-bold">{t.patientDetails}</p>
                 <p className="text-sm text-muted-foreground">
                   Primary session details before joining
                 </p>
@@ -282,13 +288,13 @@ export default function DoctorSessionPage() {
             ) : null}
           </article>
 
-          <article className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+          <article className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)] sm:p-6">
             <div className="flex items-center gap-3">
               <span className="flex size-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
                 <ClipboardCheck className="size-5" />
               </span>
               <div>
-                <p className="font-bold">Pre-consult checklist</p>
+                <p className="font-bold">{t.checklist}</p>
                 <p className="text-sm text-muted-foreground">
                   Quick checks before the doctor enters the virtual room
                 </p>
@@ -312,13 +318,13 @@ export default function DoctorSessionPage() {
         </section>
 
         <section className="space-y-5">
-          <article className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+          <article className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)] sm:p-6">
             <div className="flex items-center gap-3">
               <span className="flex size-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
                 <CalendarClock className="size-5" />
               </span>
               <div>
-                <p className="font-bold">Consult schedule context</p>
+                <p className="font-bold">{t.schedule}</p>
                 <p className="text-sm text-muted-foreground">
                   Time, readiness, and session handoff
                 </p>
@@ -352,19 +358,19 @@ export default function DoctorSessionPage() {
                   {getSessionActionLabel(activeAppointment)}
                 </Button>
                 <Button variant="outline" className="h-11 rounded-xl" disabled={!activeAppointment} onClick={() => void handleComplete()}>
-                  Mark as completed
+                  {t.markCompleted}
                 </Button>
               </div>
             </div>
           </article>
 
-          <article className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+          <article className="rounded-2xl border border-[#12324d]/10 bg-white p-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)] sm:p-6">
             <div className="flex items-center gap-3">
               <span className="flex size-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
                 <ShieldAlert className="size-5" />
               </span>
               <div>
-                <p className="font-bold">Emergency fallback</p>
+                <p className="font-bold">{t.safetyFallback}</p>
                 <p className="text-sm text-muted-foreground">
                   If the patient needs immediate in-person care
                 </p>
@@ -442,9 +448,14 @@ function ConsultMethodPanel({ appointment }: { appointment: Appointment }) {
           />
         </div>
         <Button asChild variant="outline" className="mt-4 h-10 rounded-xl">
-          <a href={buildMapsDirectionsUrl(appointment)} target="_blank">
+          <Link href={`/consultation-route/${appointment._id}`}>
             <Navigation className="size-4" />
-            Open route in Google Maps
+            Open Click Klinik route
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="mt-3 h-10 rounded-xl">
+          <a href={buildMapsDirectionsUrl(appointment)} target="_blank">
+            Google Maps backup
           </a>
         </Button>
       </div>

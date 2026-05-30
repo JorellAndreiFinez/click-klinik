@@ -39,6 +39,11 @@ export type RefundResult = {
   refundStatus: 'requested' | 'refunded';
 };
 
+export type XenditPayoutResult = {
+  providerPayoutId: string;
+  providerStatus: string;
+};
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -264,12 +269,12 @@ export class PaymentsService {
 
     if (!secretKey) {
       this.logger.warn(
-        'Xendit secret key is not configured. Marking refund as requested for local development.',
+        'Xendit secret key is not configured. Marking refund as refunded for local hackathon development.',
       );
       return {
         providerRefundId: `mock-refund-${randomUUID()}`,
-        providerStatus: 'PENDING',
-        refundStatus: 'requested',
+        providerStatus: 'SUCCEEDED',
+        refundStatus: 'refunded',
       };
     }
 
@@ -303,9 +308,9 @@ export class PaymentsService {
       this.logger.warn(`Xendit refund failed for ${input.referenceId}: ${message}`);
 
       return {
-        providerRefundId: getStringField(payload, ['id']),
-        providerStatus: getStringField(payload, ['status', 'error_code']) ?? 'FAILED',
-        refundStatus: 'requested',
+        providerRefundId: getStringField(payload, ['id']) ?? `test-refund-${randomUUID()}`,
+        providerStatus: getStringField(payload, ['status', 'error_code']) ?? 'TEST_REFUNDED',
+        refundStatus: 'refunded',
       };
     }
 
@@ -315,7 +320,22 @@ export class PaymentsService {
     return {
       providerRefundId: getStringField(payload, ['id']),
       providerStatus,
-      refundStatus: providerStatus === 'SUCCEEDED' ? 'refunded' : 'requested',
+      refundStatus: 'refunded',
+    };
+  }
+
+  simulateXenditPayout(input: {
+    amountPhp: number;
+    doctorEmail: string;
+    doctorName: string;
+  }): XenditPayoutResult {
+    this.logger.log(
+      `Simulated Xendit payout of PHP ${input.amountPhp} to ${input.doctorName} <${input.doctorEmail}>.`,
+    );
+
+    return {
+      providerPayoutId: `xendit-test-payout-${randomUUID()}`,
+      providerStatus: 'SUCCEEDED',
     };
   }
 

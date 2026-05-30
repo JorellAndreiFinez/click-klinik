@@ -18,6 +18,7 @@ const TILE_SIZE = 256;
 const DEFAULT_LATITUDE = 14.5995;
 const DEFAULT_LONGITUDE = 120.9842;
 const DEFAULT_ZOOM = 15;
+const GEOCODE_DEBOUNCE_MS = 650;
 
 type LocationPinPickerProps = {
   defaultLatitude?: number;
@@ -54,6 +55,9 @@ export function LocationPinPicker({
   } | null>(null);
   const [status, setStatus] = useState("");
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const geocodeTimeoutRef = useRef<number | null>(null);
+  const reverseGeocodeTimeoutRef = useRef<number | null>(null);
+  const suppressAddressGeocodeRef = useRef(false);
 
   const parsedLatitude = Number(latitude);
   const parsedLongitude = Number(longitude);
@@ -96,6 +100,52 @@ export function LocationPinPicker({
 
     observer.observe(mapRef.current);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    function handleAddressChange(event: Event) {
+      if (suppressAddressGeocodeRef.current) {
+        return;
+      }
+      const detail = (event as CustomEvent<{
+        regionName?: string;
+        provinceName?: string;
+        cityMunicipalityName?: string;
+        barangayName?: string;
+      }>).detail;
+      const query = [
+        detail?.barangayName,
+        detail?.cityMunicipalityName,
+        detail?.provinceName,
+        detail?.regionName,
+        "Philippines",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      if (!query.trim()) {
+        return;
+      }
+
+      if (geocodeTimeoutRef.current) {
+        window.clearTimeout(geocodeTimeoutRef.current);
+      }
+
+      geocodeTimeoutRef.current = window.setTimeout(() => {
+        void geocodeAddress(query);
+      }, GEOCODE_DEBOUNCE_MS);
+    }
+
+    window.addEventListener("click-klinik-address-changed", handleAddressChange);
+    return () => {
+      window.removeEventListener("click-klinik-address-changed", handleAddressChange);
+      if (geocodeTimeoutRef.current) {
+        window.clearTimeout(geocodeTimeoutRef.current);
+      }
+      if (reverseGeocodeTimeoutRef.current) {
+        window.clearTimeout(reverseGeocodeTimeoutRef.current);
+      }
+    };
   }, []);
 
   function useCurrentLocation() {
@@ -199,12 +249,96 @@ export function LocationPinPicker({
     setLatitude(formatCoordinate(safeLatitude));
     setLongitude(formatCoordinate(safeLongitude));
     setMapCenter({ latitude: safeLatitude, longitude: safeLongitude });
+    scheduleReverseGeocode(safeLatitude, safeLongitude);
   }
 
   function changeZoom(nextZoom: number) {
     setZoom(clamp(nextZoom, 5, 19));
     if (hasValidPin) {
       setMapCenter({ latitude: parsedLatitude, longitude: parsedLongitude });
+    }
+  }
+
+  async function geocodeAddress(query: string) {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ph&q=${encodeURIComponent(
+          query,
+        )}`,
+      );
+      const result: unknown = await response.json();
+      const firstResult =
+        Array.isArray(result) &&
+        typeof result[0] === "object" &&
+        result[0] !== null
+          ? (result[0] as Record<string, unknown>)
+          : null;
+      const nextLatitude = Number(firstResult?.lat);
+      const nextLongitude = Number(firstResult?.lon);
+
+      if (!Number.isFinite(nextLatitude) || !Number.isFinite(nextLongitude)) {
+        return;
+      }
+
+      setLatitude(formatCoordinate(nextLatitude));
+      setLongitude(formatCoordinate(nextLongitude));
+      setMapCenter({ latitude: nextLatitude, longitude: nextLongitude });
+      setStatus("Map moved near the selected address. Drag the pin for the exact location.");
+    } catch {
+      setStatus("Address selected. You can still drag the map pin manually.");
+    }
+  }
+
+  function scheduleReverseGeocode(nextLatitude: number, nextLongitude: number) {
+    if (reverseGeocodeTimeoutRef.current) {
+      window.clearTimeout(reverseGeocodeTimeoutRef.current);
+    }
+
+    reverseGeocodeTimeoutRef.current = window.setTimeout(() => {
+      void reverseGeocodePin(nextLatitude, nextLongitude);
+    }, GEOCODE_DEBOUNCE_MS);
+  }
+
+  async function reverseGeocodePin(nextLatitude: number, nextLongitude: number) {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&lat=${nextLatitude}&lon=${nextLongitude}`,
+      );
+      const payload: unknown = await response.json();
+      const address =
+        typeof payload === "object" && payload !== null && "address" in payload
+          ? (payload.address as Record<string, unknown>)
+          : {};
+      const city =
+        getAddressPart(address, ["city", "town", "municipality", "county"]) ?? "";
+      const barangay =
+        getAddressPart(address, ["suburb", "quarter", "village", "neighbourhood"]) ?? "";
+      const province = getAddressPart(address, ["province", "state_district"]);
+      const region = normalizeRegionEstimate(
+        getAddressPart(address, ["region", "state"]) ?? province,
+      );
+
+      suppressAddressGeocodeRef.current = true;
+      window.dispatchEvent(
+        new CustomEvent("click-klinik-pin-address-estimated", {
+          detail: {
+            region,
+            province,
+            cityMunicipality: city,
+            barangay,
+          },
+        }),
+      );
+      window.setTimeout(() => {
+        suppressAddressGeocodeRef.current = false;
+      }, 1500);
+      setStatus(
+        city
+          ? `Pin moved near ${[barangay, city].filter(Boolean).join(", ")}. Review the address fields before saving.`
+          : "Pin moved. Review the address fields before saving.",
+      );
+    } catch {
+      setStatus("Pin moved. Save the form to keep this exact location.");
     }
   }
 
@@ -437,4 +571,23 @@ function worldPixelToLatLng(x: number, y: number, zoom: number) {
 
 function normalizeLongitude(longitude: number) {
   return ((((longitude + 180) % 360) + 360) % 360) - 180;
+}
+
+function getAddressPart(address: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = address[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeRegionEstimate(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  return /metro manila|national capital region/i.test(value) ? "NCR" : value;
 }

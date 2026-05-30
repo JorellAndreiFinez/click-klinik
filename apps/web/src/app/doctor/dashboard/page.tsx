@@ -14,6 +14,8 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
+import { useLocale } from "@/features/localization/locale-provider";
+import { workspaceTranslations } from "@/features/localization/workspace-translations";
 import {
   claimMyDoctorPayouts,
   getMyDoctorAppointments,
@@ -26,6 +28,8 @@ import { getMyScheduleSlots, type ScheduleSlot } from "@/lib/schedule-api";
 
 export default function DoctorDashboardPage() {
   const { user, doctor } = useDoctorWorkspace();
+  const { locale } = useLocale();
+  const t = workspaceTranslations[locale].doctorHome;
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [payoutSummary, setPayoutSummary] =
@@ -88,7 +92,7 @@ export default function DoctorDashboardPage() {
     try {
       const nextSummary = await claimMyDoctorPayouts(user);
       setPayoutSummary(nextSummary);
-      setPayoutMessage("Xendit test payout marked as paid out.");
+      setPayoutMessage(t.payoutSent);
     } catch (error: unknown) {
       setPayoutMessage(
         error instanceof Error ? error.message : "Unable to claim payout.",
@@ -100,18 +104,19 @@ export default function DoctorDashboardPage() {
 
   return (
     <div className="min-h-full bg-[#f7f2e8]">
-      <section className="border-b border-[#12324d]/10 bg-white px-6 py-6 sm:px-8">
-        <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-          Doctor home
+      <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] px-6 py-7 text-white sm:px-8">
+        <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/20 blur-3xl" />
+        <p className="relative text-xs font-bold tracking-[0.2em] text-secondary uppercase">
+          {t.eyebrow}
         </p>
-        <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="relative mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-primary sm:text-3xl">
-              Good day, {displayName}
+            <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
+              {t.title(displayName)}
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-3 text-sm leading-6 text-white/75">
               {doctor.specializationName}
-              {doctor.clinicOrHospital ? ` • ${doctor.clinicOrHospital}` : ""}
+              {doctor.clinicOrHospital ? ` / ${doctor.clinicOrHospital}` : ""}
             </p>
           </div>
         </div>
@@ -119,70 +124,72 @@ export default function DoctorDashboardPage() {
 
       <section className="px-6 py-6 sm:px-8">
         <div className="grid gap-4 md:grid-cols-4">
-          <StatCard label="Active consults" value={activeAppointments.length} />
-          <StatCard label="Open slots" value={openSlots.length} />
+          <StatCard label={t.activeConsults} value={activeAppointments.length} />
+          <StatCard label={t.openSlots} value={openSlots.length} />
           <StatCard
-            label="Patients"
+            label={t.patients}
             value={new Set(appointments.map((item) => item.patientId)).size}
           />
           <MoneyStatCard
-            label="Doctor earnings"
-            value={formatPhp(revenue.availablePayoutPhp)}
+            label={t.doctorEarnings}
+            value={formatPhp(revenue.doctorPayoutPhp)}
           />
         </div>
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_360px]">
-          <section className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+          <section className="rounded-2xl border border-[#12324d]/10 bg-white px-5 py-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-                  Next step
+                <p className="text-xs font-bold tracking-[0.16em] text-muted-foreground uppercase">
+                  {t.nextStep}
                 </p>
                 <h2 className="mt-2 text-xl font-bold text-primary">
                   {nextAppointment
-                    ? "Upcoming consultation"
-                    : "Prepare your schedule"}
+                    ? t.upcomingConsultation
+                    : t.prepareSchedule}
                 </h2>
               </div>
               <Badge variant={nextAppointment ? "secondary" : "outline"}>
                 {nextAppointment
                   ? formatStatus(nextAppointment.status)
-                  : "No active session"}
+                  : t.noActiveSession}
               </Badge>
             </div>
 
             {nextAppointment ? (
               <div className="mt-5 grid gap-3 md:grid-cols-3">
-                <InfoTile label="Patient" value={nextAppointment.patientName} />
+                <InfoTile label={t.patient} value={nextAppointment.patientName} />
                 <InfoTile
-                  label="Date"
+                  label={t.date}
                   value={formatDate(nextAppointment.scheduledStartAt)}
                 />
                 <InfoTile
-                  label="Time"
+                  label={t.time}
                   value={`${formatTime(nextAppointment.scheduledStartAt)} - ${formatTime(nextAppointment.scheduledEndAt)}`}
                 />
               </div>
             ) : (
               <p className="mt-4 rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
-                Add your weekly availability so patients can book consultations.
+                {t.addAvailability}
               </p>
             )}
 
             <div className="mt-5 flex flex-wrap gap-3">
               <QuickButton href="/doctor/session" primary>
-                Open session
+                {nextAppointment?.triage?.consultMethod === "physical_visit"
+                  ? t.openClinicRoute
+                  : t.openSession}
               </QuickButton>
-              <QuickButton href="/doctor/schedule">Availability</QuickButton>
+              <QuickButton href="/doctor/schedule">{t.availability}</QuickButton>
               <QuickButton href="/doctor/schedule/calendar">
-                Calendar
+                {t.calendar}
               </QuickButton>
             </div>
           </section>
 
-          <aside className="rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
-            <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-              Clinic wallet
+          <aside className="rounded-2xl border border-[#12324d]/10 bg-white px-5 py-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
+            <p className="text-xs font-bold tracking-[0.16em] text-muted-foreground uppercase">
+              {t.clinicWallet}
             </p>
             <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
               <div className="flex items-center gap-3">
@@ -194,22 +201,26 @@ export default function DoctorDashboardPage() {
                     {formatPhp(revenue.availablePayoutPhp)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    available after online payment
+                    {t.walletCopy}
                   </p>
                 </div>
               </div>
               <div className="mt-4 grid gap-2 text-sm">
                 <WalletRow
-                  label="Gross paid"
+                  label={t.grossPaid}
                   value={formatPhp(revenue.grossAmountPhp)}
                 />
                 <WalletRow
-                  label="Click Klinik fee"
+                  label={t.clinicFee}
                   value={formatPhp(revenue.platformCommissionPhp)}
                 />
                 <WalletRow
-                  label="Pending payout"
+                  label={t.pendingPayout}
                   value={formatPhp(revenue.pendingPayoutPhp)}
+                />
+                <WalletRow
+                  label={t.paidOut}
+                  value={formatPhp(revenue.paidOutPayoutPhp)}
                 />
               </div>
               <button
@@ -219,10 +230,10 @@ export default function DoctorDashboardPage() {
                 className="mt-4 h-10 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {claimingPayout
-                  ? "Claiming..."
+                  ? t.claiming
                   : revenue.availablePayoutPhp > 0
-                    ? "Claim Xendit test payout"
-                    : "No payout available"}
+                    ? t.sendViaXendit(formatPhp(revenue.availablePayoutPhp))
+                    : t.noPayout}
               </button>
               {payoutMessage ? (
                 <p className="mt-3 rounded-xl border border-[#12324d]/10 bg-white px-3 py-2 text-xs font-semibold text-primary">
@@ -231,54 +242,54 @@ export default function DoctorDashboardPage() {
               ) : null}
             </div>
 
-            <p className="mt-5 text-xs font-bold tracking-[0.16em] text-primary uppercase">
-              Choose what you need
+            <p className="mt-5 text-xs font-bold tracking-[0.16em] text-muted-foreground uppercase">
+              {t.quickActions}
             </p>
             <div className="mt-4 grid gap-2">
               <FeatureLink
                 href="/doctor/records"
                 icon={<BookOpenText className="size-4" />}
-                label="Medical records"
+                label={t.medicalRecords}
               />
               <FeatureLink
                 href="/doctor/schedule"
                 icon={<CalendarDays className="size-4" />}
-                label="Availability"
+                label={t.availability}
               />
               <FeatureLink
                 href="/doctor/schedule/calendar"
                 icon={<CalendarRange className="size-4" />}
-                label="Calendar"
+                label={t.calendar}
               />
               <FeatureLink
                 href="/doctor/notes"
                 icon={<ClipboardPenLine className="size-4" />}
-                label="Notes & prescriptions"
+                label={t.notesPrescriptions}
               />
               <FeatureLink
                 href="/doctor/session"
                 icon={<MonitorSmartphone className="size-4" />}
-                label="Consult room"
+                label={t.consultRoom}
               />
             </div>
           </aside>
         </div>
 
-        <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+        <section className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white px-5 py-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-                Recent bookings
+              <p className="text-xs font-bold tracking-[0.16em] text-muted-foreground uppercase">
+                {t.recentBookings}
               </p>
               <h2 className="mt-2 text-xl font-bold text-primary">
-                Patients to review
+                {t.nextPatients}
               </h2>
             </div>
             <Link
               href="/doctor/schedule/calendar"
               className="text-sm font-semibold text-primary"
             >
-              View all
+              {t.viewAll}
             </Link>
           </div>
 
@@ -305,20 +316,20 @@ export default function DoctorDashboardPage() {
 
             {activeAppointments.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-6 text-sm text-muted-foreground">
-                No patient bookings yet.
+                {t.noRecentBookings}
               </div>
             ) : null}
           </div>
         </section>
 
-        <section className="mt-5 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+        <section className="mt-5 rounded-2xl border border-[#12324d]/10 bg-white px-5 py-5 shadow-[0_20px_60px_-52px_rgba(8,43,69,0.9)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
-                Payout and commission table
+              <p className="text-xs font-bold tracking-[0.16em] text-muted-foreground uppercase">
+                {t.payouts}
               </p>
               <h2 className="mt-2 text-xl font-bold text-primary">
-                Money per consultation
+                {t.consultationEarnings}
               </h2>
             </div>
             <span className="rounded-full border border-[#12324d]/10 bg-[#fcfaf5] px-3 py-1 text-xs font-semibold text-primary">
@@ -330,23 +341,26 @@ export default function DoctorDashboardPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-[#12324d]/10 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
-                  <th className="py-3 pr-4">Patient</th>
-                  <th className="py-3 pr-4">Gross</th>
-                  <th className="py-3 pr-4">Click Klinik fee</th>
-                  <th className="py-3 pr-4">Doctor payout</th>
-                  <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4">{t.patientHeader}</th>
+                  <th className="py-3 pr-4">{t.grossHeader}</th>
+                  <th className="py-3 pr-4">{t.feeHeader}</th>
+                  <th className="py-3 pr-4">{t.payoutHeader}</th>
+                  <th className="py-3 pr-4">{t.statusHeader}</th>
                 </tr>
               </thead>
               <tbody>
                 {(payoutSummary?.payouts ?? []).slice(0, 8).map((payout) => (
-                  <PayoutRow key={payout._id} payout={payout} />
+                  <PayoutRow
+                    key={payout._id}
+                    payout={payout}
+                    noReferenceLabel={t.noReference}
+                  />
                 ))}
               </tbody>
             </table>
             {payoutSummary?.payouts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-6 text-sm text-muted-foreground">
-                No payout records yet. Paid Xendit consultations will appear
-                here.
+                {t.payoutEmpty}
               </div>
             ) : null}
           </div>
@@ -356,13 +370,21 @@ export default function DoctorDashboardPage() {
   );
 }
 
-function PayoutRow({ payout }: { payout: DoctorPayout }) {
+function PayoutRow({
+  payout,
+  noReferenceLabel,
+}: {
+  payout: DoctorPayout;
+  noReferenceLabel: string;
+}) {
   return (
     <tr className="border-b border-[#12324d]/10 last:border-b-0">
       <td className="py-3 pr-4">
         <p className="font-semibold text-primary">{payout.patientName}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {payout.paymentReferenceId ?? "No reference"}
+          {payout.payoutProviderPayoutId ??
+            payout.paymentReferenceId ??
+            noReferenceLabel}
         </p>
       </td>
       <td className="py-3 pr-4 font-semibold text-primary">
@@ -385,7 +407,7 @@ function PayoutRow({ payout }: { payout: DoctorPayout }) {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
+    <div className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 shadow-[0_18px_50px_-44px_rgba(8,43,69,0.9)]">
       <p className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </p>
@@ -396,7 +418,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 function MoneyStatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
+    <div className="rounded-2xl border border-[#12324d]/10 bg-white px-4 py-4 shadow-[0_18px_50px_-44px_rgba(8,43,69,0.9)]">
       <p className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </p>
@@ -416,8 +438,10 @@ function WalletRow({ label, value }: { label: string; value: string }) {
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3">
-      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+    <div className="rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </p>
       <p className="mt-2 text-sm font-bold text-primary">{value}</p>
     </div>
   );
@@ -435,7 +459,7 @@ function FeatureLink({
   return (
     <Link
       href={href}
-      className="flex h-12 items-center gap-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm font-semibold text-primary hover:bg-primary/[0.04]"
+      className="flex h-12 items-center gap-3 rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/[0.04]"
     >
       <span className="flex size-8 items-center justify-center rounded-lg bg-secondary text-primary">
         {icon}
@@ -459,8 +483,8 @@ function QuickButton({
       href={href}
       className={
         primary
-          ? "inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
-          : "inline-flex h-11 items-center rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-5 text-sm font-semibold text-primary"
+          ? "inline-flex h-11 items-center rounded-2xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
+          : "inline-flex h-11 items-center rounded-2xl border border-[#12324d]/10 bg-[#fcfaf5] px-5 text-sm font-semibold text-primary"
       }
     >
       {children}
@@ -497,6 +521,7 @@ function getDoctorRevenue(appointments: Appointment[]) {
         summary.grossAmountPhp += appointment.totalFeePhp ?? 0;
         summary.platformCommissionPhp += commission;
         summary.availablePayoutPhp += payout;
+        summary.doctorPayoutPhp += payout;
       } else if (appointment.status !== "cancelled") {
         summary.pendingPayoutPhp += payout;
       }
@@ -505,9 +530,12 @@ function getDoctorRevenue(appointments: Appointment[]) {
     },
     {
       availablePayoutPhp: 0,
+      doctorPayoutPhp: 0,
       grossAmountPhp: 0,
+      paidOutPayoutPhp: 0,
       pendingPayoutPhp: 0,
       platformCommissionPhp: 0,
+      refundedPhp: 0,
     },
   );
 }

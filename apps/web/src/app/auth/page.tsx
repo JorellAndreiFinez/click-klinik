@@ -167,17 +167,19 @@ export default function PatientLoginPage() {
 }
 
 function AuthHeader({ copy }: { copy: PatientLoginCopy }) {
+  const mainLogoUrl =
+    "https://firebasestorage.googleapis.com/v0/b/miolms.firebasestorage.app/o/click-klinik%2Flogo-transparent_withtext.png?alt=media&token=dc17fecd-cec6-4573-8d85-0948f6d06da0";
+
   return (
     <header className="flex items-center justify-between">
       <Link href="/" className="flex items-center gap-3" aria-label="Click Klinik home">
-        <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground sm:size-11 sm:rounded-2xl">
-          <HeartPulse className="size-6" />
-        </span>
-        <span>
-          <span className="block text-lg font-bold tracking-tight sm:text-xl">Click Klinik</span>
-          <span className="hidden text-xs text-muted-foreground sm:block">
-            {copy.brandTagline}
-          </span>
+        <img
+          src={mainLogoUrl}
+          alt="Click Klinik"
+          className="h-12 w-auto object-contain sm:h-14"
+        />
+        <span className="hidden text-xs text-muted-foreground md:block">
+          {copy.brandTagline}
         </span>
       </Link>
       <div className="flex items-center gap-2">

@@ -27,6 +27,8 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPhp } from "@/features/appointments/booking-catalog";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import {
   getMyPatientAppointments,
   joinAppointment,
@@ -51,6 +53,8 @@ type AppointmentViewMode = "calendar" | "summary";
 
 export default function PatientAppointmentsPage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].patientAppointments;
   const configured = isFirebaseConfigured();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -340,9 +344,30 @@ export default function PatientAppointmentsPage() {
     [activePeriod, selectedDate, visibleAppointments],
   );
 
-  const selectedDayCount = calendarRows.reduce(
+  const selectedDayAppointments = useMemo(
+    () =>
+      visibleAppointments.filter((appointment) =>
+        isSameDay(new Date(appointment.scheduledStartAt), selectedDate),
+      ),
+    [selectedDate, visibleAppointments],
+  );
+  const selectedDayCount = selectedDayAppointments.length;
+  const activePeriodCount = calendarRows.reduce(
     (count, row) => count + row.appointments.length,
     0,
+  );
+  const monthCalendarDays = useMemo(
+    () => buildMonthCalendarDays(selectedDate),
+    [selectedDate],
+  );
+  const appointmentDates = useMemo(
+    () =>
+      new Set(
+        visibleAppointments.map((appointment) =>
+          toDateKey(new Date(appointment.scheduledStartAt)),
+        ),
+      ),
+    [visibleAppointments],
   );
   const pendingRatingAppointment = useMemo(
     () =>
@@ -374,24 +399,23 @@ export default function PatientAppointmentsPage() {
           <div className="grid lg:grid-cols-[1fr_360px]">
             <div className="px-6 py-6 sm:px-8">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Appointments
+                {t.eyebrow}
               </p>
               <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-                Your consultations
+                {t.title}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Search, filter, pay, cancel, and join your online consultations from one
-                calendar-style view.
+                {t.description}
               </p>
             </div>
             <div className="border-t border-[#12324d]/10 px-6 py-5 sm:px-8 lg:border-t-0 lg:border-l">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-                Quick status
+                {t.quickStatus}
               </p>
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <SummaryPill label="Upcoming" value={appointmentCounts.upcoming} />
-                <SummaryPill label="Paid" value={appointmentCounts.paid} />
-                <SummaryPill label="Needs pay" value={appointmentCounts.needsPayment} />
+                <SummaryPill label={t.upcoming} value={appointmentCounts.upcoming} />
+                <SummaryPill label={t.paid} value={appointmentCounts.paid} />
+                <SummaryPill label={t.needsPay} value={appointmentCounts.needsPayment} />
               </div>
             </div>
           </div>
@@ -427,48 +451,112 @@ export default function PatientAppointmentsPage() {
             </div>
 
             <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-white px-4 py-4">
-              <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
-                Calendar date
-              </p>
-              <p className="mt-2 text-lg font-bold text-primary">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+                    {t.calendarFilter}
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-primary">
+                    {formatMonthYear(selectedDate)}
+                  </p>
+                </div>
+                <Badge variant="outline" className="rounded-full">
+                  {selectedDayCount} {t.thisDay.toLowerCase()}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+                {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+                  <span key={`${day}-${index}`}>{day}</span>
+                ))}
+              </div>
+              <div className="mt-2 grid grid-cols-7 gap-1">
+                {monthCalendarDays.map((day) => {
+                  const dayKey = toDateKey(day.date);
+                  const hasAppointment = appointmentDates.has(dayKey);
+                  const selected = isSameDay(day.date, selectedDate);
+
+                  return (
+                    <button
+                      key={dayKey}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate(day.date);
+                        setDateScope("selected_day");
+                        setViewMode("calendar");
+                      }}
+                      className={cn(
+                        "relative flex h-9 items-center justify-center rounded-lg text-sm font-semibold transition-colors",
+                        selected
+                          ? "bg-primary text-primary-foreground"
+                          : day.inCurrentMonth
+                            ? "bg-[#fcfaf5] text-primary hover:bg-secondary/30"
+                            : "bg-transparent text-muted-foreground/45 hover:bg-[#fcfaf5]",
+                      )}
+                    >
+                      {day.date.getDate()}
+                      {hasAppointment ? (
+                        <span
+                          className={cn(
+                            "absolute bottom-1 size-1 rounded-full",
+                            selected ? "bg-secondary" : "bg-primary",
+                          )}
+                        />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="mt-3 text-sm font-semibold text-primary">
                 {formatWeekdayDate(selectedDate)}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <ToggleButton
                   active={dateScope === "all"}
-                  onClick={() => setDateScope("all")}
+                  onClick={() => {
+                    setDateScope("all");
+                    setViewMode("summary");
+                  }}
                 >
-                  All dates
+                  {t.allDates}
                 </ToggleButton>
                 <ToggleButton
                   active={dateScope === "selected_day"}
-                  onClick={() => setDateScope("selected_day")}
+                  onClick={() => {
+                    setDateScope("selected_day");
+                    setViewMode("calendar");
+                  }}
                 >
-                  This day
+                  {t.thisDay}
                 </ToggleButton>
               </div>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                All dates opens the sorted summary. This day focuses the
+                30-minute calendar on the selected date.
+              </p>
             </div>
 
             <div className="mt-4 space-y-4">
-              <FilterField label="Search">
+              <FilterField label={t.search}>
                 <div className="flex h-11 items-center gap-3 rounded-xl border border-[#12324d]/10 bg-white px-3">
                   <Search className="size-4 text-muted-foreground" />
                   <input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Doctor, location, status"
+                    placeholder={t.searchPlaceholder}
                     className="w-full bg-transparent text-sm outline-none"
                   />
                 </div>
               </FilterField>
 
-              <FilterField label="Consultation status">
+              <FilterField label={t.consultationStatus}>
                 <Select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
                 >
-                  <option value="upcoming">Upcoming only</option>
-                  <option value="all">All statuses</option>
+                  <option value="upcoming">{t.upcomingOnly}</option>
+                  <option value="all">{t.allStatuses}</option>
                   <option value="booked">Booked</option>
                   <option value="confirmed">Confirmed</option>
                   <option value="active_consultation">Active consultation</option>
@@ -477,12 +565,12 @@ export default function PatientAppointmentsPage() {
                 </Select>
               </FilterField>
 
-              <FilterField label="Payment">
+              <FilterField label={t.payment}>
                 <Select
                   value={paymentFilter}
                   onChange={(event) => setPaymentFilter(event.target.value as PaymentFilter)}
                 >
-                  <option value="all">All payments</option>
+                  <option value="all">{t.allPayments}</option>
                   <option value="paid">Paid</option>
                   <option value="pending">Pending</option>
                   <option value="unpaid">Unpaid</option>
@@ -491,7 +579,7 @@ export default function PatientAppointmentsPage() {
                 </Select>
               </FilterField>
 
-              <FilterField label="Sort by">
+              <FilterField label={t.sortBy}>
                 <Select
                   value={sortMode}
                   onChange={(event) => setSortMode(event.target.value as SortMode)}
@@ -525,7 +613,7 @@ export default function PatientAppointmentsPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#12324d]/10 bg-[#fcfaf5] px-6 py-4 sm:px-8">
               <div>
                 <p className="text-sm font-semibold text-primary">
-                  {viewMode === "calendar" ? "Daily calendar" : "Upcoming summary"}
+                  {viewMode === "calendar" ? t.calendar : t.summary}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {viewMode === "calendar"
@@ -546,7 +634,7 @@ export default function PatientAppointmentsPage() {
                         : "text-primary hover:bg-primary/[0.04]",
                     )}
                   >
-                    Calendar
+                    {t.calendar}
                   </button>
                   <button
                     type="button"
@@ -558,7 +646,7 @@ export default function PatientAppointmentsPage() {
                         : "text-primary hover:bg-primary/[0.04]",
                     )}
                   >
-                    Summary
+                    {t.summary}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 rounded-xl border border-[#12324d]/10 bg-white p-1">
@@ -631,7 +719,7 @@ export default function PatientAppointmentsPage() {
                   />
                 ))}
 
-                {selectedDayCount === 0 ? (
+                {activePeriodCount === 0 ? (
                   <div className="px-6 py-14 text-center sm:px-8">
                     <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-secondary/20 text-primary">
                       <CalendarDays className="size-5" />
@@ -951,7 +1039,7 @@ function AppointmentRow({
               )
             ) : canJoinAppointment(appointment) && isPhysicalVisitAppointment(appointment) ? (
               <Button asChild className="h-10 rounded-xl">
-                <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+                <Link href={`/consultation-route/${appointment._id}`}>
                   <Navigation className="size-4" />
                   Open route
                 </Link>
@@ -1141,9 +1229,14 @@ function ConsultMethodPanel({ appointment }: { appointment: Appointment }) {
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">{proximity}</p>
           <Button asChild variant="outline" className="h-10 rounded-xl">
-            <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+            <Link href={`/consultation-route/${appointment._id}`}>
               <Navigation className="size-4" />
-              View in Google Maps
+              View Click Klinik route
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-10 rounded-xl">
+            <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+              Google Maps backup
             </Link>
           </Button>
         </div>
@@ -1490,6 +1583,24 @@ function groupAppointmentsByDate(appointments: Appointment[]) {
     }));
 }
 
+function buildMonthCalendarDays(selectedDate: Date) {
+  const monthStart = new Date(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+    1,
+  );
+  const gridStart = addDays(monthStart, -monthStart.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = addDays(gridStart, index);
+
+    return {
+      date,
+      inCurrentMonth: date.getMonth() === selectedDate.getMonth(),
+    };
+  });
+}
+
 function setTime(date: Date, minutesOfDay: number) {
   const next = new Date(date);
   next.setHours(Math.floor(minutesOfDay / 60), minutesOfDay % 60, 0, 0);
@@ -1696,6 +1807,19 @@ function formatWeekdayDate(date: Date) {
     day: "numeric",
     year: "numeric",
   }).format(date);
+}
+
+function formatMonthYear(date: Date) {
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 function downloadAppointmentReceipt(appointment: Appointment) {

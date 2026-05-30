@@ -76,6 +76,12 @@ export class Payout {
   @Prop()
   paidAt?: Date;
 
+  @Prop({ trim: true })
+  payoutProviderPayoutId?: string;
+
+  @Prop({ trim: true })
+  payoutProviderStatus?: string;
+
   @Prop()
   refundRequestedAt?: Date;
 

@@ -22,6 +22,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPhp } from "@/features/appointments/booking-catalog";
+import { dashboardPageTranslations } from "@/features/localization/dashboard-page-translations";
+import { useLocale } from "@/features/localization/locale-provider";
 import {
   getMyDoctorAppointments,
   joinAppointment,
@@ -42,6 +44,8 @@ type CalendarViewMode = "calendar" | "summary";
 
 export default function DoctorScheduleCalendarPage() {
   const { user } = useDoctorWorkspace();
+  const { locale } = useLocale();
+  const t = dashboardPageTranslations[locale].doctorCalendar;
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -105,7 +109,7 @@ export default function DoctorScheduleCalendarPage() {
           window.open(`tel:${appointment.patientMobileNumber ?? ""}`, "_self");
         }
         if (appointment.triage?.consultMethod === "physical_visit") {
-          window.open(buildMapsDirectionsUrl(appointment), "_blank", "noopener,noreferrer");
+          window.open(`/consultation-route/${appointment._id}`, "_blank", "noopener,noreferrer");
         }
       }
     } catch (error: unknown) {
@@ -185,34 +189,39 @@ export default function DoctorScheduleCalendarPage() {
     [activePeriod, selectedDate, visibleAppointments],
   );
   const counts = useMemo(() => getAppointmentCounts(appointments), [appointments]);
-  const selectedDayCount = calendarRows.reduce(
+  const selectedDayAppointments = visibleAppointments.filter((appointment) =>
+    isSameDay(new Date(appointment.scheduledStartAt), selectedDate),
+  );
+  const activePeriodCount = calendarRows.reduce(
     (total, row) => total + row.appointments.length,
     0,
   );
+  const selectedDayCount = selectedDayAppointments.length;
 
   return (
     <div className="min-h-full bg-[#f7f2e8]">
-      <section className="border-b border-[#12324d]/10 bg-white">
+      <section className="relative overflow-hidden border-b border-[#12324d]/10 bg-[#082b45] text-white">
+        <div className="pointer-events-none absolute -right-20 -top-24 size-72 rounded-full bg-secondary/20 blur-3xl" />
         <div className="grid lg:grid-cols-[1fr_360px]">
-          <div className="px-6 py-6 sm:px-8">
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Consultations
+          <div className="relative px-6 py-7 sm:px-8">
+            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+              {t.eyebrow}
             </p>
-            <h1 className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
-              Doctor calendar
+            <h1 className="mt-2 text-3xl font-bold leading-tight text-white sm:text-4xl">
+              {t.title}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Search, filter, join, complete, and document patient consultations from one calendar-style view.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
+              {t.description}
             </p>
           </div>
-          <div className="border-t border-[#12324d]/10 px-6 py-5 sm:px-8 lg:border-t-0 lg:border-l">
-            <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
-              Quick status
+          <div className="relative border-t border-white/15 px-6 py-6 sm:px-8 lg:border-t-0 lg:border-l">
+            <p className="text-xs font-bold tracking-[0.18em] text-secondary uppercase">
+              {t.quickStatus}
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <SummaryPill label="Upcoming" value={counts.upcoming} />
-              <SummaryPill label="Paid" value={counts.paid} />
-              <SummaryPill label="Needs note" value={counts.needsNote} />
+              <SummaryPill label={t.upcoming} value={counts.upcoming} />
+              <SummaryPill label={t.paid} value={counts.paid} />
+              <SummaryPill label={t.needsNote} value={counts.needsNote} />
             </div>
           </div>
         </div>
@@ -409,7 +418,7 @@ export default function DoctorScheduleCalendarPage() {
                 />
               ))}
 
-              {selectedDayCount === 0 ? (
+              {activePeriodCount === 0 ? (
                 <div className="px-6 py-14 text-center sm:px-8">
                   <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-secondary/20 text-primary">
                     <CalendarDays className="size-5" />
@@ -640,9 +649,14 @@ function DoctorConsultationRow({
                 </span>
               </p>
               <Button asChild variant="outline" className="h-9 rounded-xl">
-                <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+                <Link href={`/consultation-route/${appointment._id}`}>
                   <Navigation className="size-4" />
                   Route
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="h-9 rounded-xl">
+                <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+                  Maps backup
                 </Link>
               </Button>
             </div>
@@ -685,11 +699,11 @@ function DoctorConsultationRow({
 
 function SummaryPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 py-3">
-      <p className="text-[10px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
+    <div className="rounded-2xl border border-white/15 bg-white/8 px-3 py-3">
+      <p className="text-[10px] font-bold tracking-[0.14em] text-secondary uppercase">
         {label}
       </p>
-      <p className="mt-2 text-xl font-bold text-primary">{value}</p>
+      <p className="mt-2 text-xl font-bold text-white">{value}</p>
     </div>
   );
 }
