@@ -187,7 +187,7 @@ export class DoctorsService {
         yearsOfExperience: dto.yearsOfExperience,
         bio: dto.bio.trim(),
         displayOnPublicWebsite: dto.displayOnPublicWebsite,
-        applicationStatus: 'pending_review',
+        applicationStatus: 'approved',
         credentialReviewConsentAcceptedAt: new Date(),
       });
     } catch (error) {
@@ -638,16 +638,12 @@ type GeminiResponse = {
   }>;
 };
 
-function safeParseGeminiRecommendation(
-  value: string,
-):
-  | {
-      specializationCode?: string;
-      relatedSpecializationCodes?: string[];
-      reasoning?: string;
-      symptomKeywords?: string[];
-    }
-  | null {
+function safeParseGeminiRecommendation(value: string): {
+  specializationCode?: string;
+  relatedSpecializationCodes?: string[];
+  reasoning?: string;
+  symptomKeywords?: string[];
+} | null {
   try {
     return JSON.parse(value) as {
       specializationCode?: string;
@@ -678,7 +674,9 @@ function getSpecializationMatchCondition(
   const normalizedCodes = specializationCodes
     .map((code) => code.trim().toUpperCase())
     .filter((code) => code in SPECIALIZATIONS);
-  const specializationNames = normalizedCodes.map((code) => SPECIALIZATIONS[code]);
+  const specializationNames = normalizedCodes.map(
+    (code) => SPECIALIZATIONS[code],
+  );
 
   return {
     $or: [
@@ -701,10 +699,7 @@ function escapeRegex(value: string): string {
 }
 
 function getGeminiApiKeys(): string[] {
-  const envList = [
-    process.env.GEMINI_API_KEYS,
-    process.env.GEMINI_API_KEY,
-  ]
+  const envList = [process.env.GEMINI_API_KEYS, process.env.GEMINI_API_KEY]
     .filter(Boolean)
     .flatMap((value) => value!.split(','))
     .map((value) => value.trim())
@@ -726,19 +721,77 @@ function recommendFromKeywords(input: string): {
     keywords: string[];
     relatedCodes?: string[];
   }> = [
-    { code: 'CARD', keywords: ['chest pain', 'palpitations', 'heart', 'bp'], relatedCodes: ['IM', 'GPHY'] },
-    { code: 'PULMO', keywords: ['cough', 'asthma', 'shortness of breath'], relatedCodes: ['IM', 'GPHY'] },
-    { code: 'PSYCH', keywords: ['anxiety', 'depression', 'panic', 'suicidal'], relatedCodes: ['PSYCHO', 'GPHY'] },
-    { code: 'PSYCHO', keywords: ['stress', 'counseling', 'therapy'], relatedCodes: ['PSYCH', 'GPHY'] },
-    { code: 'DERM', keywords: ['rash', 'itch', 'acne', 'skin'], relatedCodes: ['GPHY'] },
-    { code: 'OBGYN', keywords: ['pregnancy', 'period', 'pelvic', 'vaginal'], relatedCodes: ['GPHY'] },
-    { code: 'PEDIA', keywords: ['child', 'baby', 'infant', 'fever child'], relatedCodes: ['GPHY'] },
-    { code: 'ENT', keywords: ['ear', 'nose', 'throat', 'sinus'], relatedCodes: ['GPHY'] },
-    { code: 'NEURO', keywords: ['headache', 'seizure', 'migraine', 'numbness'], relatedCodes: ['IM', 'GPHY'] },
-    { code: 'URO', keywords: ['urine', 'kidney', 'uti', 'prostate'], relatedCodes: ['IM', 'GPHY'] },
-    { code: 'OPTH', keywords: ['eye', 'vision', 'blurred vision'], relatedCodes: ['GPHY'] },
-    { code: 'REHAB', keywords: ['injury', 'stroke recovery', 'mobility'], relatedCodes: ['PHYTHERA', 'GPHY'] },
-    { code: 'IM', keywords: ['diabetes', 'hypertension', 'cholesterol', 'fatigue', 'adult checkup'], relatedCodes: ['GPHY', 'MEDSPEC'] },
+    {
+      code: 'CARD',
+      keywords: ['chest pain', 'palpitations', 'heart', 'bp'],
+      relatedCodes: ['IM', 'GPHY'],
+    },
+    {
+      code: 'PULMO',
+      keywords: ['cough', 'asthma', 'shortness of breath'],
+      relatedCodes: ['IM', 'GPHY'],
+    },
+    {
+      code: 'PSYCH',
+      keywords: ['anxiety', 'depression', 'panic', 'suicidal'],
+      relatedCodes: ['PSYCHO', 'GPHY'],
+    },
+    {
+      code: 'PSYCHO',
+      keywords: ['stress', 'counseling', 'therapy'],
+      relatedCodes: ['PSYCH', 'GPHY'],
+    },
+    {
+      code: 'DERM',
+      keywords: ['rash', 'itch', 'acne', 'skin'],
+      relatedCodes: ['GPHY'],
+    },
+    {
+      code: 'OBGYN',
+      keywords: ['pregnancy', 'period', 'pelvic', 'vaginal'],
+      relatedCodes: ['GPHY'],
+    },
+    {
+      code: 'PEDIA',
+      keywords: ['child', 'baby', 'infant', 'fever child'],
+      relatedCodes: ['GPHY'],
+    },
+    {
+      code: 'ENT',
+      keywords: ['ear', 'nose', 'throat', 'sinus'],
+      relatedCodes: ['GPHY'],
+    },
+    {
+      code: 'NEURO',
+      keywords: ['headache', 'seizure', 'migraine', 'numbness'],
+      relatedCodes: ['IM', 'GPHY'],
+    },
+    {
+      code: 'URO',
+      keywords: ['urine', 'kidney', 'uti', 'prostate'],
+      relatedCodes: ['IM', 'GPHY'],
+    },
+    {
+      code: 'OPTH',
+      keywords: ['eye', 'vision', 'blurred vision'],
+      relatedCodes: ['GPHY'],
+    },
+    {
+      code: 'REHAB',
+      keywords: ['injury', 'stroke recovery', 'mobility'],
+      relatedCodes: ['PHYTHERA', 'GPHY'],
+    },
+    {
+      code: 'IM',
+      keywords: [
+        'diabetes',
+        'hypertension',
+        'cholesterol',
+        'fatigue',
+        'adult checkup',
+      ],
+      relatedCodes: ['GPHY', 'MEDSPEC'],
+    },
   ];
 
   const matchedRule = rules.find((rule) =>
