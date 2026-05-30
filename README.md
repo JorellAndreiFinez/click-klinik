@@ -2,195 +2,47 @@
 
 ### One Click Closer to Healthcare
 
-Click Klinik is a telehealth platform designed to make healthcare more accessible, organized, and inclusive for Filipino patients and healthcare professionals.
+Click Klinik is a telehealth platform that streamlines the healthcare journey for Filipino patients and healthcare professionals.
 
-The platform provides a complete healthcare workflow—from patient onboarding and doctor discovery to consultation, prescriptions, medical records, health monitoring, and follow-up care.
-
----
-
-# Problem Statement
-
-Many healthcare experiences remain fragmented.
-
-Patients often need to use multiple platforms to:
-
-* Find healthcare providers
-* Schedule appointments
-* Communicate with doctors
-* Manage prescriptions
-* Access medical records
-* Track health progress
-
-This creates unnecessary complexity and friction.
-
-Click Klinik addresses this by providing a single platform that centralizes the entire healthcare journey.
+The platform supports doctor discovery, appointment booking, consultations, prescriptions, medical records, payments, health monitoring, and follow-up care in a single system.
 
 ---
 
-# Solution
-
-Click Klinik delivers an end-to-end telehealth ecosystem that supports:
-
-✅ Patient Registration
-
-✅ Doctor Discovery
-
-✅ AI-Guided Doctor Recommendations
-
-✅ Appointment Scheduling
-
-✅ Online Consultations
-
-✅ Phone Consultations
-
-✅ Physical Visit Consultations
-
-✅ Payment Processing
-
-✅ Prescriptions
-
-✅ Medical Certificates
-
-✅ Medical Records
-
-✅ Health Monitoring
-
-✅ Notifications
-
-✅ Multi-Language Accessibility
-
----
-
-# Key Features
+# Features
 
 ## 👤 Patient Features
 
-### Account Registration
-
-Patients can create accounts using:
-
-* Email and Password
-* Google Sign-In
-
-### Patient Profile
-
-Patients can maintain healthcare information including:
-
-* Personal Information
-* Emergency Contacts
-* Allergies
-* Current Medications
-* Existing Conditions
-* Medical History
-
-### Doctor Discovery
-
-Patients can search doctors by:
-
-* Name
-* Specialization
-* Location
-* Healthcare Need
-
-### Appointment Booking
-
-Patients can:
-
-* View Doctor Availability
-* Select Consultation Slots
-* Complete Health Triage Forms
-* Choose Consultation Methods
-
-### Consultation Methods
-
-Supported consultation types:
-
-* Google Meet
-* Phone Consultation
-* Physical Visit
-
-### Medical Records
-
-Patients can access:
-
-* Consultation History
-* Prescriptions
-* Consultation Notes
-* Medical Certificates
-
-### Health Monitoring
-
-Patients can log:
-
-* Blood Pressure
-* Weight
-* Pulse Rate
-* Symptoms
-* Progress Notes
-
----
+* Patient Registration & Authentication
+* Doctor Discovery & Search
+* AI-Assisted Doctor Recommendation
+* Appointment Booking
+* Health Triage Forms
+* Google Meet Consultations
+* Phone Consultations
+* Physical Visit Scheduling
+* Medical Records Access
+* Prescription Viewing
+* Medical Certificate Access
+* Health Monitoring Logs
+* Multi-Language Support
 
 ## 👨‍⚕️ Doctor Features
 
-### Doctor Profile
+* Doctor Registration
+* Profile Management
+* Availability & Schedule Management
+* Consultation Management
+* Patient Medical Records Access
+* Consultation Notes
+* Prescription Management
+* Medical Certificate Generation
+* Earnings & Payout Tracking
 
-Doctors can manage:
+## 🛡️ Admin Features
 
-* Professional Information
-* Credentials
-* Specializations
-* Clinic Details
-
-### Availability Management
-
-Doctors can:
-
-* Create Recurring Weekly Schedules
-* Manage Consultation Slots
-* Block Unavailable Dates
-
-### Consultation Management
-
-Doctors can:
-
-* Review Patient Triage Information
-* Conduct Consultations
-* Access Medical Records
-
-### Notes & Prescriptions
-
-Doctors can:
-
-* Create Consultation Notes
-* Issue Prescriptions
-* Add Follow-Up Recommendations
-
-### Medical Certificates
-
-Doctors can generate:
-
-* Medical Certificates
-* Digital Signatures
-* Verification Details
-
-### Financial Management
-
-Doctors can view:
-
-* Consultation Earnings
-* Pending Payouts
-* Payment History
-
----
-
-## 🛡️ Administrative Features
-
-Administrators can:
-
-* Review Doctor Applications
-* Manage Platform Access
-* Monitor Platform Activity
-* Maintain Quality Control
+* Doctor Application Review
+* User Management
+* Platform Monitoring
 
 ---
 
@@ -317,11 +169,127 @@ MongoDB   Firebase   External Services
 
 ---
 
+# Local Setup
+
+## Prerequisites
+
+* Node.js 20+
+* pnpm
+* MongoDB
+* Firebase Project
+
+---
+
+## Clone Repository
+
+```bash
+git clone <repository-url>
+cd click-klinik
+```
+
+---
+
+## Install Dependencies
+
+```bash
+pnpm install
+```
+
+---
+
+## Backend Setup
+
+Navigate to:
+
+```bash
+cd apps/api
+```
+
+Create:
+
+```bash
+.env
+```
+
+Example:
+
+```env
+MONGODB_URI=
+
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+XENDIT_SECRET_KEY=
+
+SUPERADMIN_EMAILS=
+```
+
+Start backend:
+
+```bash
+pnpm start:dev
+```
+
+Backend runs on:
+
+```text
+http://localhost:3000
+```
+
+---
+
+## Frontend Setup
+
+Navigate to:
+
+```bash
+cd apps/web
+```
+
+Create:
+
+```bash
+.env.local
+```
+
+Example:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000
+
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+NEXT_PUBLIC_SUPERADMIN_EMAILS=
+```
+
+Start frontend:
+
+```bash
+pnpm dev
+```
+
+Frontend runs on:
+
+```text
+http://localhost:3001
+```
+
+---
+
 # Judge Evaluation Guide
 
 To experience the complete workflow:
 
-### Patient Flow
+## Patient Flow
 
 1. Create a Patient Account
 2. Complete Your Profile
@@ -333,7 +301,7 @@ To experience the complete workflow:
 8. View Medical Records
 9. Explore Health Monitoring
 
-### Doctor Flow
+## Doctor Flow
 
 1. Register as a Doctor
 2. Complete Doctor Profile
@@ -345,50 +313,13 @@ To experience the complete workflow:
 
 ---
 
-# Technical Challenges
-
-During development, several challenges were addressed:
-
-### Multi-System Integration
-
-The platform coordinates:
-
-* Authentication
-* Scheduling
-* Payments
-* Notifications
-* Medical Records
-* Calendar Integrations
-
-while maintaining a seamless user experience.
-
-### Healthcare Workflow Design
-
-Balancing simplicity for patients while providing sufficient functionality for healthcare professionals required careful UX design decisions.
-
----
-
-# Future Improvements
-
-Planned enhancements include:
-
-* Real-Time Notifications via WebSockets
-* Enhanced AI Recommendation Validation
-* Production-Ready Payment Workflows
-* Expanded Language Support
-* Advanced Analytics
-* Enhanced Compliance & Audit Logging
-* Mobile Application Support
-
----
-
 # Developer
 
 ## Jorell Andrei Finez
 
 **Sole Developer**
 
-Designed, developed, and implemented the entire Click Klinik platform including:
+Responsible for:
 
 * Frontend Development
 * Backend Development
@@ -397,16 +328,14 @@ Designed, developed, and implemented the entire Click Klinik platform including:
 * API Integrations
 * Payment Integration
 * Google Meet Integration
+* AI Recommendation System
 * Health Monitoring
 * Multi-Language Support
-* AI Recommendation Features
 
 ---
 
-# Closing Statement
+# Closing
 
-Click Klinik is more than an appointment booking platform.
-
-It is a complete telehealth ecosystem designed to support the entire healthcare journey—from finding the right doctor to managing long-term health and follow-up care.
+Click Klinik demonstrates a complete telehealth workflow that supports the entire healthcare journey—from doctor discovery and consultations to prescriptions, records, payments, and long-term health monitoring.
 
 **One Click Closer to Healthcare.**
