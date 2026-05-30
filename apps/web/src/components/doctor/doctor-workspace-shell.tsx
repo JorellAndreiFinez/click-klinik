@@ -143,8 +143,8 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
                 src={logoTextUrl}
                 alt="Click Klinik"
                 className={cn(
-                  "h-12 w-auto object-contain",
-                  collapsed && "h-10 max-w-12 object-contain object-left",
+                  "h-17 w-auto object-contain",
+                  collapsed && "h-12 max-w-12 object-contain object-left",
                 )}
               />
             </Link>
@@ -159,7 +159,9 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
             >
               <LanguageSelector
                 className={cn(
-                  collapsed ? "w-12 justify-center px-2" : "w-full justify-center",
+                  collapsed
+                    ? "w-12 justify-center px-2"
+                    : "w-full justify-center",
                 )}
               />
             </div>
@@ -212,7 +214,9 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
                   >
                     {link.icon}
                   </span>
-                  <span className={cn(collapsed && "hidden")}>{link.label}</span>
+                  <span className={cn(collapsed && "hidden")}>
+                    {link.label}
+                  </span>
                 </Link>
               );
             })}
@@ -224,7 +228,11 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
               onClick={() => setCollapsed((current) => !current)}
               className="mb-2 h-10 w-full rounded-2xl text-primary-foreground/70 hover:bg-white/[0.08] hover:text-primary-foreground"
             >
-              {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
+              {collapsed ? (
+                <ChevronsRight className="size-4" />
+              ) : (
+                <ChevronsLeft className="size-4" />
+              )}
               <span className={cn(collapsed && "hidden")}>{t.collapse}</span>
             </Button>
             <Button
@@ -238,9 +246,7 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <section className="min-w-0 bg-[#f7f2e8] px-0 py-0">
-          {children}
-        </section>
+        <section className="min-w-0 bg-[#f7f2e8] px-0 py-0">{children}</section>
       </div>
       <WorkspaceNotifications />
     </main>
