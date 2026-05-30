@@ -92,6 +92,30 @@ export class Appointment {
   @Prop({ required: true, trim: true })
   patientName!: string;
 
+  @Prop({ trim: true })
+  patientMobileNumber?: string;
+
+  @Prop({ trim: true })
+  patientLocation?: string;
+
+  @Prop({ trim: true })
+  patientRegionName?: string;
+
+  @Prop({ trim: true })
+  patientProvinceName?: string;
+
+  @Prop({ trim: true })
+  patientCityMunicipalityName?: string;
+
+  @Prop({ trim: true })
+  patientBarangayName?: string;
+
+  @Prop({ min: -90, max: 90 })
+  patientLatitude?: number;
+
+  @Prop({ min: -180, max: 180 })
+  patientLongitude?: number;
+
   @Prop({ required: true, index: true })
   doctorApplicationId!: string;
 
@@ -106,6 +130,30 @@ export class Appointment {
 
   @Prop({ trim: true })
   doctorLocation?: string;
+
+  @Prop({ trim: true })
+  doctorClinicOrHospital?: string;
+
+  @Prop({ trim: true })
+  doctorMobileNumber?: string;
+
+  @Prop({ trim: true })
+  doctorRegionName?: string;
+
+  @Prop({ trim: true })
+  doctorProvinceName?: string;
+
+  @Prop({ trim: true })
+  doctorCityMunicipalityName?: string;
+
+  @Prop({ trim: true })
+  doctorBarangayName?: string;
+
+  @Prop({ min: -90, max: 90 })
+  doctorLatitude?: number;
+
+  @Prop({ min: -180, max: 180 })
+  doctorLongitude?: number;
 
   @Prop({ required: true, trim: true })
   consultationCode!: string;

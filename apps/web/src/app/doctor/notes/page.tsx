@@ -173,14 +173,14 @@ export default function DoctorNotesPage() {
       patientRecords
         .filter(
           (record) =>
-            record.appointmentId !== selectedAppointmentId &&
             record.prescriptions.length > 0,
         )
         .sort(
           (left, right) =>
-            new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+            new Date(right.updatedAt ?? right.createdAt).getTime() -
+            new Date(left.updatedAt ?? left.createdAt).getTime(),
         ),
-    [patientRecords, selectedAppointmentId],
+    [patientRecords],
   );
 
   useEffect(() => {
@@ -209,6 +209,7 @@ export default function DoctorNotesPage() {
         privateNote,
         recommendations,
       });
+      await refreshPatientRecords();
       setEditingSection(null);
       setMessage("Consultation notes saved.");
     } catch (error: unknown) {
@@ -227,7 +228,7 @@ export default function DoctorNotesPage() {
     setMessage(null);
 
     try {
-      await saveMyDoctorAppointmentRecord(user, selectedAppointmentId, {
+      const savedRecord = await saveMyDoctorAppointmentRecord(user, selectedAppointmentId, {
         prescriptions: prescriptions
           .map((item) => ({
             medicine: item.medicine,
@@ -237,6 +238,12 @@ export default function DoctorNotesPage() {
           }))
           .filter((item) => item.medicine.trim()),
       });
+      setPrescriptions(
+        savedRecord.prescriptions.length
+          ? savedRecord.prescriptions.map((item) => createPrescription(item))
+          : [createPrescription()],
+      );
+      await refreshPatientRecords();
       setEditingSection(null);
       setMessage("Prescription saved.");
     } catch (error: unknown) {
@@ -289,6 +296,7 @@ export default function DoctorNotesPage() {
           ? new Date(savedCertificate.issuedAt).toISOString().slice(0, 10)
           : certificateIssuedAt,
       );
+      await refreshPatientRecords();
       setEditingSection(null);
       setMessage(
         "Medical certificate saved to patient records and medical_certificates.",
@@ -333,6 +341,7 @@ export default function DoctorNotesPage() {
       setDoctorSignatureText(
         savedRecord.doctorSignatureText ?? latestSignatureText,
       );
+      await refreshPatientRecords();
       setEditingSection(null);
       setMessage("Doctor signature saved.");
     } catch (error: unknown) {
@@ -358,6 +367,15 @@ export default function DoctorNotesPage() {
     context.strokeStyle = "#082b45";
     context.beginPath();
     context.moveTo(x, y);
+  }
+
+  async function refreshPatientRecords() {
+    if (!user || !selectedAppointment?.patientId) {
+      return;
+    }
+
+    const detail = await getMyDoctorPatientDetail(user, selectedAppointment.patientId);
+    setPatientRecords(detail.records);
   }
 
   function drawSignature(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -812,7 +830,7 @@ export default function DoctorNotesPage() {
               <div>
                 <p className="font-bold text-primary">Prescription history</p>
                 <p className="text-sm text-muted-foreground">
-                  Previous medicines from this patient&apos;s past records.
+                  Saved medicines from this consultation and the patient&apos;s past records.
                 </p>
               </div>
             </div>
@@ -826,6 +844,9 @@ export default function DoctorNotesPage() {
                   >
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
                       {formatDate(record.createdAt)} / {record.specializationName}
+                      {record.appointmentId === selectedAppointmentId
+                        ? " / Current consultation"
+                        : ""}
                     </p>
                     <div className="mt-3 space-y-2">
                       {record.prescriptions.map((item, index) => (

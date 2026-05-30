@@ -59,6 +59,15 @@ export class Doctor {
   @Prop({ required: true, trim: true })
   barangayName!: string;
 
+  @Prop({ min: -90, max: 90 })
+  latitude?: number;
+
+  @Prop({ min: -180, max: 180 })
+  longitude?: number;
+
+  @Prop()
+  geoLocationUpdatedAt?: Date;
+
   @Prop({ required: true })
   yearsOfExperience!: number;
 

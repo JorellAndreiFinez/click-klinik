@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { HeartPulse, Save } from "lucide-react";
@@ -10,6 +10,7 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 
 import { Button } from "@/components/ui/button";
 import { PhAddressFields } from "@/components/forms/ph-address-fields";
+import { LocationPinPicker } from "@/components/forms/location-pin-picker";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   getMyPatientProfile,
@@ -146,6 +147,8 @@ export default function PatientProfilePage() {
                 cityMunicipalityName: String(form.get("cityMunicipalityName") ?? "").trim(),
                 barangayCode: String(form.get("barangayCode") ?? "").trim(),
                 barangayName: String(form.get("barangayName") ?? "").trim(),
+                latitude: optionalNumber(form.get("latitude")),
+                longitude: optionalNumber(form.get("longitude")),
               });
               void handleSave({
                 ...profile,
@@ -157,6 +160,8 @@ export default function PatientProfilePage() {
                 cityMunicipalityName: String(form.get("cityMunicipalityName") ?? "").trim(),
                 barangayCode: String(form.get("barangayCode") ?? "").trim(),
                 barangayName: String(form.get("barangayName") ?? "").trim(),
+                latitude: optionalNumber(form.get("latitude")),
+                longitude: optionalNumber(form.get("longitude")),
               });
             }}
           >
@@ -168,7 +173,13 @@ export default function PatientProfilePage() {
               </TwoCols>
               <TwoCols>
                 <Field label="Suffix" value={profile.suffix ?? ""} onChange={(value) => setProfile({ ...profile, suffix: value })} />
-                <Field label="Mobile number" value={profile.mobileNumber} onChange={(value) => setProfile({ ...profile, mobileNumber: value })} />
+                <Field
+                  label="Mobile number"
+                  value={profile.mobileNumber}
+                  inputMode="tel"
+                  maxLength={13}
+                  onChange={(value) => setProfile({ ...profile, mobileNumber: toPhilippineE164Input(value) })}
+                />
               </TwoCols>
               <TwoCols>
                 <Field label="Birthday" type="date" value={toDateInput(profile.birthdate)} onChange={(value) => setProfile({ ...profile, birthdate: value })} />
@@ -227,6 +238,10 @@ export default function PatientProfilePage() {
                   barangayCode: profile.barangayCode ?? "",
                 }}
               />
+              <LocationPinPicker
+                defaultLatitude={profile.latitude}
+                defaultLongitude={profile.longitude}
+              />
             </ProfileCard>
 
             <div className="xl:col-span-2">
@@ -261,12 +276,16 @@ function Field({
   onChange,
   type = "text",
   disabled = false,
+  inputMode,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange?: (value: string) => void;
   type?: string;
   disabled?: boolean;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
 }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-primary">
@@ -275,6 +294,8 @@ function Field({
         type={type}
         value={value}
         disabled={disabled}
+        inputMode={inputMode}
+        maxLength={maxLength}
         onChange={(event) => onChange?.(event.target.value)}
         className="h-11 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm outline-none disabled:bg-[#eee8dc] disabled:text-muted-foreground"
       />
@@ -310,4 +331,15 @@ function toDateInput(value: string) {
 
 function splitItems(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  const parsed = Number(String(value ?? "").trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toPhilippineE164Input(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  const local = digits.replace(/^63/, "").replace(/^0/, "").slice(0, 10);
+  return local ? `+63${local}` : "";
 }

@@ -42,11 +42,27 @@ export type Appointment = {
   patientId: string;
   patientEmail: string;
   patientName: string;
+  patientMobileNumber?: string;
+  patientLocation?: string;
+  patientRegionName?: string;
+  patientProvinceName?: string;
+  patientCityMunicipalityName?: string;
+  patientBarangayName?: string;
+  patientLatitude?: number;
+  patientLongitude?: number;
   doctorApplicationId: string;
   doctorEmail: string;
   doctorName: string;
   specializationName: string;
   doctorLocation?: string;
+  doctorClinicOrHospital?: string;
+  doctorMobileNumber?: string;
+  doctorRegionName?: string;
+  doctorProvinceName?: string;
+  doctorCityMunicipalityName?: string;
+  doctorBarangayName?: string;
+  doctorLatitude?: number;
+  doctorLongitude?: number;
   consultationCode: string;
   consultationLabel: string;
   triage?: AppointmentTriage;
@@ -159,6 +175,14 @@ export async function getMyDoctorAppointments(user: User): Promise<Appointment[]
 
 export async function getMyDoctorPayouts(user: User): Promise<DoctorPayoutSummary> {
   return appointmentRequest<DoctorPayoutSummary>(user, "/appointments/me/doctor/payouts");
+}
+
+export async function claimMyDoctorPayouts(user: User): Promise<DoctorPayoutSummary> {
+  return appointmentRequest<DoctorPayoutSummary>(
+    user,
+    "/appointments/me/doctor/payouts/claim",
+    { method: "POST" },
+  );
 }
 
 export async function updateAppointmentStatus(

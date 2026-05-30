@@ -20,12 +20,19 @@ import { PatientWorkspaceShell } from "../patient-workspace-shell";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getMyPatientAppointments, type Appointment } from "@/lib/appointments-api";
+import {
+  getMyPatientAppointments,
+  type Appointment,
+} from "@/lib/appointments-api";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   getMyPatientRecords,
   type MedicalRecord,
 } from "@/lib/medical-records-api";
+import {
+  getMyMonitoringSummary,
+  type HealthMonitoringSummary,
+} from "@/lib/health-monitoring-api";
 import { getMyPatientProfile, type PatientProfile } from "@/lib/patient-api";
 
 export default function PatientPortalPage() {
@@ -34,6 +41,8 @@ export default function PatientPortalPage() {
   const [profile, setProfile] = useState<PatientProfile | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [receivedRecords, setReceivedRecords] = useState<MedicalRecord[]>([]);
+  const [monitoringSummary, setMonitoringSummary] =
+    useState<HealthMonitoringSummary | null>(null);
   const [doctorSearchNeed, setDoctorSearchNeed] = useState("");
   const [message, setMessage] = useState(
     firebaseConfigured
@@ -56,14 +65,17 @@ export default function PatientPortalPage() {
       }
 
       const loadPortalData = async () => {
-        const [patient, nextAppointments, recordsView] = await Promise.all([
-          getMyPatientProfile(user),
-          getMyPatientAppointments(user),
-          getMyPatientRecords(user),
-        ]);
+        const [patient, nextAppointments, recordsView, nextMonitoringSummary] =
+          await Promise.all([
+            getMyPatientProfile(user),
+            getMyPatientAppointments(user),
+            getMyPatientRecords(user),
+            getMyMonitoringSummary(user),
+          ]);
         setProfile(patient);
         setAppointments(nextAppointments);
         setReceivedRecords(recordsView.records);
+        setMonitoringSummary(nextMonitoringSummary);
       };
 
       void loadPortalData().catch(() => {
@@ -136,7 +148,8 @@ export default function PatientPortalPage() {
   const nextAppointment = activeAppointments[0];
   const latestRecord = receivedRecords[0];
   const locationText =
-    profile && [profile.cityMunicipalityName, profile.provinceName]
+    profile &&
+    [profile.cityMunicipalityName, profile.provinceName]
       .filter(Boolean)
       .join(", ");
 
@@ -172,15 +185,12 @@ export default function PatientPortalPage() {
                 Hi, {profile.firstName}. What do you need today?
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Start a consultation, check your appointment, or open records from your doctor.
+                Start a consultation, check your appointment, or open records
+                from your doctor.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="h-9 rounded-full px-3">
-                <ShieldCheck className="size-3.5" />
-                Private care
-              </Badge>
               {locationText ? (
                 <Badge variant="outline" className="h-9 rounded-full px-3">
                   <MapPin className="size-3.5" />
@@ -225,7 +235,9 @@ export default function PatientPortalPage() {
                     <Sparkles className="size-4" />
                   </span>
                   <div>
-                    <h2 className="font-bold text-primary">Tell us your concern</h2>
+                    <h2 className="font-bold text-primary">
+                      Tell us your concern
+                    </h2>
                     <p className="text-sm text-muted-foreground">
                       We will help match you with a relevant doctor type.
                     </p>
@@ -241,7 +253,10 @@ export default function PatientPortalPage() {
                 />
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <Button className="h-11 rounded-xl" onClick={handleDoctorMatchSearch}>
+                  <Button
+                    className="h-11 rounded-xl"
+                    onClick={handleDoctorMatchSearch}
+                  >
                     <Search className="size-4" />
                     Find matched doctors
                   </Button>
@@ -252,6 +267,66 @@ export default function PatientPortalPage() {
               </div>
             </div>
 
+            <section className="mt-6 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
+                    Health monitoring
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold text-primary">
+                    {monitoringSummary?.trend
+                      ? formatMonitoringTrend(monitoringSummary.trend)
+                      : "No home logs yet"}
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    {monitoringSummary?.summary ??
+                      "Add BP, glucose, temperature, oxygen, pulse, symptoms, or notes so doctors can review your trend before consultation."}
+                  </p>
+                </div>
+                <Button asChild className="h-11 rounded-xl">
+                  <Link href="/patient/monitoring">
+                    <HeartPulse className="size-4" />
+                    Add health log
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <MonitoringTile
+                  label="Latest BP"
+                  value={
+                    monitoringSummary?.latestLog
+                      ? formatBp(monitoringSummary.latestLog)
+                      : "Not logged"
+                  }
+                />
+                <MonitoringTile
+                  label="Temperature"
+                  value={
+                    typeof monitoringSummary?.latestLog?.temperatureC ===
+                    "number"
+                      ? `${monitoringSummary.latestLog.temperatureC} deg C`
+                      : "Not logged"
+                  }
+                />
+                <MonitoringTile
+                  label="Oxygen"
+                  value={
+                    typeof monitoringSummary?.latestLog?.oxygenSaturation ===
+                    "number"
+                      ? `${monitoringSummary.latestLog.oxygenSaturation}%`
+                      : "Not logged"
+                  }
+                />
+              </div>
+
+              {monitoringSummary?.flags.length ? (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                  {monitoringSummary.flags[0]}
+                </div>
+              ) : null}
+            </section>
+
             <div className="mt-6">
               <p className="text-xs font-bold tracking-[0.18em] text-primary uppercase">
                 Your next step
@@ -260,7 +335,9 @@ export default function PatientPortalPage() {
                 <article className="mt-3 rounded-xl border border-[#12324d]/10 bg-white px-5 py-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <Badge variant="secondary">{formatStatus(nextAppointment.status)}</Badge>
+                      <Badge variant="secondary">
+                        {formatStatus(nextAppointment.status)}
+                      </Badge>
                       <h2 className="mt-3 text-xl font-bold text-primary">
                         {nextAppointment.doctorName}
                       </h2>
@@ -281,7 +358,9 @@ export default function PatientPortalPage() {
                 </article>
               ) : (
                 <div className="mt-3 rounded-xl border border-dashed border-[#12324d]/14 bg-white px-5 py-6">
-                  <p className="font-semibold text-primary">No appointment booked yet.</p>
+                  <p className="font-semibold text-primary">
+                    No appointment booked yet.
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     You can find a doctor when you are ready.
                   </p>
@@ -296,17 +375,16 @@ export default function PatientPortalPage() {
                 Care summary
               </p>
               <div className="mt-4 space-y-4">
-                <SummaryRow
-                  label="Mobile"
-                  value={profile.mobileNumber}
-                />
+                <SummaryRow label="Mobile" value={profile.mobileNumber} />
                 <SummaryRow
                   label="Allergies"
                   value={profile.allergies.join(", ") || "None reported"}
                 />
                 <SummaryRow
                   label="Conditions"
-                  value={profile.existingConditions.join(", ") || "None reported"}
+                  value={
+                    profile.existingConditions.join(", ") || "None reported"
+                  }
                 />
                 <SummaryRow
                   label="Emergency contact"
@@ -325,7 +403,9 @@ export default function PatientPortalPage() {
               </p>
               {latestRecord ? (
                 <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
-                  <p className="font-semibold text-primary">{latestRecord.doctorName}</p>
+                  <p className="font-semibold text-primary">
+                    {latestRecord.doctorName}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {latestRecord.specializationName}
                   </p>
@@ -343,14 +423,18 @@ export default function PatientPortalPage() {
                       <Badge variant="secondary">Certificate</Badge>
                     ) : null}
                   </div>
-                  <Button asChild variant="outline" className="mt-4 h-10 rounded-xl">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="mt-4 h-10 rounded-xl"
+                  >
                     <Link href="/patient/records">Open records</Link>
                   </Button>
                 </div>
               ) : (
                 <p className="mt-4 rounded-xl border border-dashed border-[#12324d]/12 bg-[#fcfaf5] px-4 py-5 text-sm text-muted-foreground">
-                  Doctor notes, prescriptions, and certificates will appear here after
-                  your consultation.
+                  Doctor notes, prescriptions, and certificates will appear here
+                  after your consultation.
                 </p>
               )}
             </section>
@@ -360,13 +444,22 @@ export default function PatientPortalPage() {
                 Quick links
               </p>
               <div className="mt-4 grid gap-2">
-                <SmallLink href="/patient/appointments" icon={<CalendarDays className="size-4" />}>
+                <SmallLink
+                  href="/patient/appointments"
+                  icon={<CalendarDays className="size-4" />}
+                >
                   View appointments
                 </SmallLink>
-                <SmallLink href="/patient/records" icon={<FileText className="size-4" />}>
+                <SmallLink
+                  href="/patient/records"
+                  icon={<FileText className="size-4" />}
+                >
                   View records
                 </SmallLink>
-                <SmallLink href="/privacy" icon={<ShieldCheck className="size-4" />}>
+                <SmallLink
+                  href="/privacy"
+                  icon={<ShieldCheck className="size-4" />}
+                >
                   Privacy notice
                 </SmallLink>
               </div>
@@ -438,6 +531,28 @@ function SmallLink({
       <ChevronRight className="size-4 text-primary/40" />
     </Link>
   );
+}
+
+function MonitoringTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-3">
+      <p className="text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-bold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function formatMonitoringTrend(trend: string) {
+  return trend.replace(/_/g, " ");
+}
+
+function formatBp(log: { systolicBp?: number; diastolicBp?: number }) {
+  return typeof log.systolicBp === "number" &&
+    typeof log.diastolicBp === "number"
+    ? `${log.systolicBp}/${log.diastolicBp} mmHg`
+    : "Not logged";
 }
 
 function formatStatus(value: Appointment["status"]) {

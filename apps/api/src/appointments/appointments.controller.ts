@@ -49,6 +49,11 @@ export class AppointmentsController {
     return this.appointmentsService.listDoctorPayouts(request.user);
   }
 
+  @Post('me/doctor/payouts/claim')
+  claimMyDoctorPayouts(@Req() request: AuthenticatedRequest) {
+    return this.appointmentsService.claimDoctorPayouts(request.user);
+  }
+
   @Patch(':id/status')
   updateStatus(
     @Req() request: AuthenticatedRequest,

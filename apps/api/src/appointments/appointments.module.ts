@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { CalendarModule } from '../integrations/calendar/calendar.module';
+import { NotificationsModule } from '../integrations/notifications/notifications.module';
 import { PaymentsModule } from '../integrations/payments/payments.module';
 import { Doctor, DoctorSchema } from '../doctors/schemas/doctor.schema';
 import { Patient, PatientSchema } from '../patients/schemas/patient.schema';
@@ -23,6 +24,7 @@ import { XenditWebhookController } from './xendit-webhook.controller';
     ]),
     AuthModule,
     CalendarModule,
+    NotificationsModule,
     PaymentsModule,
   ],
   controllers: [AppointmentsController, XenditWebhookController],

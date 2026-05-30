@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   MapPin,
   MonitorSmartphone,
+  Navigation,
   Phone,
   ShieldAlert,
   UserRound,
@@ -89,6 +90,10 @@ export default function DoctorSessionPage() {
 
       if (result.meetLink) {
         window.open(result.meetLink, "_blank", "noopener,noreferrer");
+      } else if (activeAppointment.triage?.consultMethod === "cellular") {
+        window.open(`tel:${activeAppointment.patientMobileNumber ?? ""}`, "_self");
+      } else if (activeAppointment.triage?.consultMethod === "physical_visit") {
+        window.open(buildMapsDirectionsUrl(activeAppointment), "_blank", "noopener,noreferrer");
       }
     } catch (error: unknown) {
       setActionError(
@@ -200,7 +205,7 @@ export default function DoctorSessionPage() {
               onClick={() => void handleJoin()}
             >
               <Video className="size-4" />
-              Join Google Meet
+              {getSessionActionLabel(activeAppointment)}
             </Button>
             <Button
               variant="outline"
@@ -267,10 +272,14 @@ export default function DoctorSessionPage() {
                 value={activeAppointment?.patientEmail ?? "--"}
               />
               <InfoCard
-                label="Doctor location"
-                value={activeAppointment?.doctorLocation ?? "Online consultation"}
+                label="Consult method"
+                value={activeAppointment ? formatConsultMethod(activeAppointment) : "--"}
               />
             </div>
+
+            {activeAppointment ? (
+              <ConsultMethodPanel appointment={activeAppointment} />
+            ) : null}
           </article>
 
           <article className="rounded-3xl border border-border bg-card p-5 sm:p-6">
@@ -340,7 +349,7 @@ export default function DoctorSessionPage() {
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button className="h-11 rounded-xl" disabled={!activeAppointment} onClick={() => void handleJoin()}>
                   <MonitorSmartphone className="size-4" />
-                  Launch consult session
+                  {getSessionActionLabel(activeAppointment)}
                 </Button>
                 <Button variant="outline" className="h-11 rounded-xl" disabled={!activeAppointment} onClick={() => void handleComplete()}>
                   Mark as completed
@@ -391,6 +400,118 @@ function InfoCard({ label, value }: { label: string; value: string }) {
       <p className="mt-2 text-sm font-semibold">{value}</p>
     </article>
   );
+}
+
+function ConsultMethodPanel({ appointment }: { appointment: Appointment }) {
+  if (appointment.triage?.consultMethod === "cellular") {
+    return (
+      <div className="mt-5 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+        <p className="flex items-center gap-2 text-sm font-bold text-primary">
+          <Phone className="size-4" />
+          Cellular phone session
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Patient mobile:{" "}
+          <span className="font-semibold text-primary">
+            {appointment.patientMobileNumber ?? "Not provided"}
+          </span>
+        </p>
+      </div>
+    );
+  }
+
+  if (appointment.triage?.consultMethod === "physical_visit") {
+    return (
+      <div className="mt-5 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+        <p className="flex items-center gap-2 text-sm font-bold text-primary">
+          <MapPin className="size-4" />
+          Physical clinic visit
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <InfoCard
+            label="Patient start area"
+            value={appointment.patientLocation ?? "Saved patient location"}
+          />
+          <InfoCard
+            label="Clinic location"
+            value={
+              appointment.doctorLocation ??
+              appointment.doctorClinicOrHospital ??
+              "Clinic location"
+            }
+          />
+        </div>
+        <Button asChild variant="outline" className="mt-4 h-10 rounded-xl">
+          <a href={buildMapsDirectionsUrl(appointment)} target="_blank">
+            <Navigation className="size-4" />
+            Open route in Google Maps
+          </a>
+        </Button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function formatConsultMethod(appointment: Appointment) {
+  if (appointment.triage?.consultMethod === "physical_visit") {
+    return "Physical visit";
+  }
+
+  if (appointment.triage?.consultMethod === "cellular") {
+    return "Cellular phone";
+  }
+
+  return "Google Meet";
+}
+
+function getSessionActionLabel(appointment: Appointment | null) {
+  if (!appointment) {
+    return "Open session";
+  }
+
+  if (appointment.triage?.consultMethod === "cellular") {
+    return "Call patient";
+  }
+
+  if (appointment.triage?.consultMethod === "physical_visit") {
+    return "Open clinic route";
+  }
+
+  return "Join Google Meet";
+}
+
+function buildMapsDirectionsUrl(appointment: Appointment) {
+  const params = new URLSearchParams({
+    api: "1",
+    origin:
+      formatCoordinatePair(appointment.patientLatitude, appointment.patientLongitude) ??
+      appointment.patientLocation ??
+      "",
+    destination:
+      formatCoordinatePair(appointment.doctorLatitude, appointment.doctorLongitude) ??
+      appointment.doctorLocation ??
+      appointment.doctorClinicOrHospital ??
+      appointment.doctorCityMunicipalityName ??
+      "",
+    travelmode: "driving",
+  });
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function formatCoordinatePair(latitude?: number, longitude?: number) {
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return undefined;
+  }
+
+  return `${latitude},${longitude}`;
 }
 
 function formatAppointmentDate(value: string) {

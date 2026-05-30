@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhAddressFields } from "@/components/forms/ph-address-fields";
+import { LocationPinPicker } from "@/components/forms/location-pin-picker";
 import { doctorSpecializations } from "@/features/doctors/specializations";
 import { checkDoctorMobileAvailability, checkDoctorSignupEligibility, submitDoctorApplication } from "@/lib/doctor-api";
 import { getFirebaseAuth, isFirebaseConfigured } from "@/lib/firebase";
@@ -182,6 +183,8 @@ export default function DoctorApplicationPage() {
         cityMunicipalityName: String(form.get("cityMunicipalityName") ?? "").trim(),
         barangayCode: String(form.get("barangayCode") ?? "").trim(),
         barangayName: String(form.get("barangayName") ?? "").trim(),
+        latitude: optionalNumber(form.get("latitude")),
+        longitude: optionalNumber(form.get("longitude")),
         yearsOfExperience: Number(form.get("yearsOfExperience")),
         bio: String(form.get("bio") ?? "").trim(),
         displayOnPublicWebsite: publicProfile,
@@ -448,7 +451,16 @@ function MobileRegistration({
         <Field required label="Professional mobile number">
           <div className="flex overflow-hidden rounded-xl border border-input bg-background focus-within:ring-3 focus-within:ring-ring/45">
             <span className="flex items-center border-r border-border px-4 text-sm font-bold text-primary">+63</span>
-            <input required value={mobileNumber} onChange={(event) => setMobileNumber(event.target.value)} placeholder="917 123 4567" className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground" />
+            <input
+              required
+              value={mobileNumber}
+              onChange={(event) => setMobileNumber(toPhilippineLocalDigits(event.target.value))}
+              placeholder="917 123 4567"
+              inputMode="numeric"
+              maxLength={10}
+              pattern="9[0-9]{9}"
+              className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
+            />
           </div>
         </Field>
         <Button disabled={busy} className="h-12 w-full rounded-xl">
@@ -528,6 +540,12 @@ function ProfessionalProfileForm({
       </div>
       <div className="sm:col-span-2">
         <PhAddressFields />
+      </div>
+      <div className="sm:col-span-2">
+        <LocationPinPicker
+          title="Clinic map pin"
+          description="Pin the exact clinic or hospital entrance for physical visits and patient directions."
+        />
       </div>
       <label className="grid gap-2 sm:col-span-2">
         <span className="text-sm font-semibold">Practice introduction<RequiredMark /></span>
@@ -688,9 +706,18 @@ function toPhilippineE164(phoneNumber: string): string {
   return `+63${digits}`;
 }
 
+function toPhilippineLocalDigits(value: string): string {
+  return value.replace(/\D/g, "").replace(/^0/, "").replace(/^63/, "").slice(0, 10);
+}
+
 function splitDisplayName(displayName: string | null): { firstName: string; lastName: string } {
   const parts = (displayName ?? "").trim().split(/\s+/).filter(Boolean);
   return { firstName: parts.shift() ?? "Doctor", lastName: parts.join(" ") };
+}
+
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  const parsed = Number(String(value ?? "").trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function validatePassword(password: string, confirmPassword: string): void {

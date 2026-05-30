@@ -25,6 +25,8 @@ export type PatientProfile = {
   cityMunicipalityName?: string;
   barangayCode?: string;
   barangayName?: string;
+  latitude?: number;
+  longitude?: number;
   privacyPolicyAccepted: boolean;
   healthDataProcessingAccepted: boolean;
   aiAssistanceAccepted: boolean;

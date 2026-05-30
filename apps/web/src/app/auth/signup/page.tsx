@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhAddressFields } from "@/components/forms/ph-address-fields";
+import { LocationPinPicker } from "@/components/forms/location-pin-picker";
 import { LanguageSelector } from "@/features/localization/language-selector";
 import { useLocale } from "@/features/localization/locale-provider";
 import { patientAuthTranslations, type PatientSignupCopy } from "@/features/localization/patient-auth-translations";
@@ -198,6 +199,8 @@ export default function PatientSignUpPage() {
         cityMunicipalityName: String(form.get("cityMunicipalityName") ?? "").trim(),
         barangayCode: String(form.get("barangayCode") ?? "").trim(),
         barangayName: String(form.get("barangayName") ?? "").trim(),
+        latitude: optionalNumber(form.get("latitude")),
+        longitude: optionalNumber(form.get("longitude")),
         privacyPolicyAccepted,
         healthDataProcessingAccepted,
         aiAssistanceAccepted: form.get("aiAssistanceAccepted") === "on",
@@ -449,7 +452,16 @@ function MobileRegistration({
         <Field required label={copy.mobileLabel}>
           <div className="flex overflow-hidden rounded-xl border border-input bg-background focus-within:ring-3 focus-within:ring-ring/45">
             <span className="flex items-center border-r border-border px-4 text-sm font-bold text-primary">+63</span>
-            <input required value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder={copy.mobilePlaceholder} className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground" />
+            <input
+              required
+              value={phoneNumber}
+              onChange={(event) => setPhoneNumber(toPhilippineLocalDigits(event.target.value))}
+              placeholder={copy.mobilePlaceholder}
+              inputMode="numeric"
+              maxLength={10}
+              pattern="9[0-9]{9}"
+              className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
+            />
           </div>
         </Field>
         <Button disabled={busy} className="h-12 w-full rounded-xl">
@@ -581,9 +593,10 @@ function HealthProfileForm({
 
       <ProfileSection
         title="Location details"
-        description="Select your region, city or municipality, and barangay using PSGC data."
+        description="Select your region, city or municipality, and barangay using PSGC data, then add an exact map pin for physical visits."
       >
-      <PhAddressFields />
+        <PhAddressFields />
+        <LocationPinPicker />
       </ProfileSection>
       <div className="space-y-3 rounded-xl border border-primary/10 bg-[#f6f0e4] p-4 text-xs leading-5 text-muted-foreground">
         <ConsentInput name="privacyPolicyAccepted" required label={copy.privacyConsent} />
@@ -721,11 +734,20 @@ function toPhilippineE164(phoneNumber: string, copy?: PatientSignupCopy): string
   return `+63${digits}`;
 }
 
+function toPhilippineLocalDigits(value: string): string {
+  return value.replace(/\D/g, "").replace(/^0/, "").replace(/^63/, "").slice(0, 10);
+}
+
 function splitList(value: FormDataEntryValue | null): string[] {
   return String(value ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  const parsed = Number(String(value ?? "").trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function splitDisplayName(displayName: string | null): {

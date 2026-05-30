@@ -16,6 +16,7 @@ type CreateConsultationEventInput = {
   endsAt: Date;
   summary: string;
   description: string;
+  createMeet?: boolean;
 };
 
 export type CalendarEventResult = {
@@ -37,7 +38,7 @@ export class CalendarService {
       this.logger.warn(
         'Google Calendar is not configured. Returning mock consultation links for local development.',
       );
-      return buildMockCalendarResult();
+      return buildMockCalendarResult(input.createMeet !== false);
     }
 
     try {
@@ -56,9 +57,10 @@ export class CalendarService {
       const calendarId =
         this.configService.get<string>('GOOGLE_CALENDAR_ID') ?? 'primary';
 
+      const shouldCreateMeet = input.createMeet !== false;
       const event = await calendar.events.insert({
         calendarId,
-        conferenceDataVersion: 1,
+        conferenceDataVersion: shouldCreateMeet ? 1 : 0,
         sendUpdates: 'all',
         requestBody: {
           summary: input.summary,
@@ -81,14 +83,18 @@ export class CalendarService {
               displayName: input.doctorName,
             },
           ],
-          conferenceData: {
-            createRequest: {
-              requestId: randomUUID(),
-              conferenceSolutionKey: {
-                type: 'hangoutsMeet',
-              },
-            },
-          },
+          ...(shouldCreateMeet
+            ? {
+                conferenceData: {
+                  createRequest: {
+                    requestId: randomUUID(),
+                    conferenceSolutionKey: {
+                      type: 'hangoutsMeet',
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       });
 
@@ -120,11 +126,13 @@ export class CalendarService {
   }
 }
 
-function buildMockCalendarResult(): CalendarEventResult {
+function buildMockCalendarResult(createMeet = true): CalendarEventResult {
   const token = randomUUID().replace(/-/g, '').slice(0, 10);
   return {
     eventId: `mock-${token}`,
     htmlLink: `https://calendar.google.com/calendar/u/0/r`,
-    meetLink: `https://meet.google.com/${token.slice(0, 3)}-${token.slice(3, 7)}-${token.slice(7, 10)}`,
+    meetLink: createMeet
+      ? `https://meet.google.com/${token.slice(0, 3)}-${token.slice(3, 7)}-${token.slice(7, 10)}`
+      : undefined,
   };
 }

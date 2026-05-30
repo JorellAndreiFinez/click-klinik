@@ -15,22 +15,23 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
 import {
+  claimMyDoctorPayouts,
   getMyDoctorAppointments,
   getMyDoctorPayouts,
   type Appointment,
   type DoctorPayout,
   type DoctorPayoutSummary,
 } from "@/lib/appointments-api";
-import {
-  getMyScheduleSlots,
-  type ScheduleSlot,
-} from "@/lib/schedule-api";
+import { getMyScheduleSlots, type ScheduleSlot } from "@/lib/schedule-api";
 
 export default function DoctorDashboardPage() {
   const { user, doctor } = useDoctorWorkspace();
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [payoutSummary, setPayoutSummary] = useState<DoctorPayoutSummary | null>(null);
+  const [payoutSummary, setPayoutSummary] =
+    useState<DoctorPayoutSummary | null>(null);
+  const [claimingPayout, setClaimingPayout] = useState(false);
+  const [payoutMessage, setPayoutMessage] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -61,7 +62,8 @@ export default function DoctorDashboardPage() {
     () =>
       appointments.filter(
         (appointment) =>
-          appointment.status !== "completed" && appointment.status !== "cancelled",
+          appointment.status !== "completed" &&
+          appointment.status !== "cancelled",
       ),
     [appointments],
   );
@@ -74,6 +76,27 @@ export default function DoctorDashboardPage() {
   const openSlots = slots.filter((slot) => slot.status === "available");
   const displayName = `Dr. ${doctor.firstName} ${doctor.lastName}`;
   const revenue = payoutSummary?.totals ?? getDoctorRevenue(appointments);
+
+  async function handleClaimPayout() {
+    if (!user || revenue.availablePayoutPhp <= 0) {
+      return;
+    }
+
+    setClaimingPayout(true);
+    setPayoutMessage("");
+
+    try {
+      const nextSummary = await claimMyDoctorPayouts(user);
+      setPayoutSummary(nextSummary);
+      setPayoutMessage("Xendit test payout marked as paid out.");
+    } catch (error: unknown) {
+      setPayoutMessage(
+        error instanceof Error ? error.message : "Unable to claim payout.",
+      );
+    } finally {
+      setClaimingPayout(false);
+    }
+  }
 
   return (
     <div className="min-h-full bg-[#f7f2e8]">
@@ -91,10 +114,6 @@ export default function DoctorDashboardPage() {
               {doctor.clinicOrHospital ? ` • ${doctor.clinicOrHospital}` : ""}
             </p>
           </div>
-          <Badge variant="outline" className="h-9 rounded-full px-3">
-            <Stethoscope className="size-3.5" />
-            Verified doctor
-          </Badge>
         </div>
       </section>
 
@@ -102,7 +121,10 @@ export default function DoctorDashboardPage() {
         <div className="grid gap-4 md:grid-cols-4">
           <StatCard label="Active consults" value={activeAppointments.length} />
           <StatCard label="Open slots" value={openSlots.length} />
-          <StatCard label="Patients" value={new Set(appointments.map((item) => item.patientId)).size} />
+          <StatCard
+            label="Patients"
+            value={new Set(appointments.map((item) => item.patientId)).size}
+          />
           <MoneyStatCard
             label="Doctor earnings"
             value={formatPhp(revenue.availablePayoutPhp)}
@@ -117,11 +139,15 @@ export default function DoctorDashboardPage() {
                   Next step
                 </p>
                 <h2 className="mt-2 text-xl font-bold text-primary">
-                  {nextAppointment ? "Upcoming consultation" : "Prepare your schedule"}
+                  {nextAppointment
+                    ? "Upcoming consultation"
+                    : "Prepare your schedule"}
                 </h2>
               </div>
               <Badge variant={nextAppointment ? "secondary" : "outline"}>
-                {nextAppointment ? formatStatus(nextAppointment.status) : "No active session"}
+                {nextAppointment
+                  ? formatStatus(nextAppointment.status)
+                  : "No active session"}
               </Badge>
             </div>
 
@@ -148,7 +174,9 @@ export default function DoctorDashboardPage() {
                 Open session
               </QuickButton>
               <QuickButton href="/doctor/schedule">Availability</QuickButton>
-              <QuickButton href="/doctor/schedule/calendar">Calendar</QuickButton>
+              <QuickButton href="/doctor/schedule/calendar">
+                Calendar
+              </QuickButton>
             </div>
           </section>
 
@@ -165,14 +193,42 @@ export default function DoctorDashboardPage() {
                   <p className="font-bold text-primary">
                     {formatPhp(revenue.availablePayoutPhp)}
                   </p>
-                  <p className="text-xs text-muted-foreground">available after online payment</p>
+                  <p className="text-xs text-muted-foreground">
+                    available after online payment
+                  </p>
                 </div>
               </div>
               <div className="mt-4 grid gap-2 text-sm">
-                <WalletRow label="Gross paid" value={formatPhp(revenue.grossAmountPhp)} />
-                <WalletRow label="Click Klinik fee" value={formatPhp(revenue.platformCommissionPhp)} />
-                <WalletRow label="Pending payout" value={formatPhp(revenue.pendingPayoutPhp)} />
+                <WalletRow
+                  label="Gross paid"
+                  value={formatPhp(revenue.grossAmountPhp)}
+                />
+                <WalletRow
+                  label="Click Klinik fee"
+                  value={formatPhp(revenue.platformCommissionPhp)}
+                />
+                <WalletRow
+                  label="Pending payout"
+                  value={formatPhp(revenue.pendingPayoutPhp)}
+                />
               </div>
+              <button
+                type="button"
+                disabled={claimingPayout || revenue.availablePayoutPhp <= 0}
+                onClick={() => void handleClaimPayout()}
+                className="mt-4 h-10 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {claimingPayout
+                  ? "Claiming..."
+                  : revenue.availablePayoutPhp > 0
+                    ? "Claim Xendit test payout"
+                    : "No payout available"}
+              </button>
+              {payoutMessage ? (
+                <p className="mt-3 rounded-xl border border-[#12324d]/10 bg-white px-3 py-2 text-xs font-semibold text-primary">
+                  {payoutMessage}
+                </p>
+              ) : null}
             </div>
 
             <p className="mt-5 text-xs font-bold tracking-[0.16em] text-primary uppercase">
@@ -214,9 +270,14 @@ export default function DoctorDashboardPage() {
               <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
                 Recent bookings
               </p>
-              <h2 className="mt-2 text-xl font-bold text-primary">Patients to review</h2>
+              <h2 className="mt-2 text-xl font-bold text-primary">
+                Patients to review
+              </h2>
             </div>
-            <Link href="/doctor/schedule/calendar" className="text-sm font-semibold text-primary">
+            <Link
+              href="/doctor/schedule/calendar"
+              className="text-sm font-semibold text-primary"
+            >
               View all
             </Link>
           </div>
@@ -228,7 +289,9 @@ export default function DoctorDashboardPage() {
                 className="grid gap-3 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4 md:grid-cols-[1fr_auto]"
               >
                 <div>
-                  <p className="font-semibold text-primary">{appointment.patientName}</p>
+                  <p className="font-semibold text-primary">
+                    {appointment.patientName}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {formatDate(appointment.scheduledStartAt)} at{" "}
                     {formatTime(appointment.scheduledStartAt)}
@@ -282,7 +345,8 @@ export default function DoctorDashboardPage() {
             </table>
             {payoutSummary?.payouts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-[#fcfaf5] px-4 py-6 text-sm text-muted-foreground">
-                No payout records yet. Paid Xendit consultations will appear here.
+                No payout records yet. Paid Xendit consultations will appear
+                here.
               </div>
             ) : null}
           </div>
@@ -453,7 +517,10 @@ function getDoctorPayoutPhp(appointment: Appointment) {
     return appointment.doctorPayoutPhp;
   }
 
-  return Math.max((appointment.totalFeePhp ?? 0) - getPlatformCommissionPhp(appointment), 0);
+  return Math.max(
+    (appointment.totalFeePhp ?? 0) - getPlatformCommissionPhp(appointment),
+    0,
+  );
 }
 
 function getPlatformCommissionPhp(appointment: Appointment) {

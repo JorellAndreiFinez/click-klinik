@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent, InputHTMLAttributes, ReactNode } from "react";
 import { Save } from "lucide-react";
 
 import { PhAddressFields } from "@/components/forms/ph-address-fields";
+import { LocationPinPicker } from "@/components/forms/location-pin-picker";
 import { Button } from "@/components/ui/button";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
 import {
@@ -57,6 +58,8 @@ export default function DoctorProfilePage() {
     const barangayCode = String(form.get("barangayCode") ?? "").trim();
     const barangayName = String(form.get("barangayName") ?? "").trim();
     const location = String(form.get("location") ?? "").trim();
+    const latitude = optionalNumber(form.get("latitude"));
+    const longitude = optionalNumber(form.get("longitude"));
 
     setSaving(true);
     setMessage("");
@@ -88,6 +91,8 @@ export default function DoctorProfilePage() {
         cityMunicipalityName,
         barangayCode,
         barangayName,
+        latitude,
+        longitude,
         yearsOfExperience: profile.yearsOfExperience,
         bio: profile.bio,
         displayOnPublicWebsite: profile.displayOnPublicWebsite,
@@ -145,7 +150,13 @@ export default function DoctorProfilePage() {
                   ))}
                 </select>
               </label>
-              <Field label="Mobile number" value={profile.mobileNumber} onChange={(value) => setProfile({ ...profile, mobileNumber: value })} />
+              <Field
+                label="Mobile number"
+                value={profile.mobileNumber}
+                inputMode="tel"
+                maxLength={13}
+                onChange={(value) => setProfile({ ...profile, mobileNumber: toPhilippineE164Input(value) })}
+              />
             </TwoCols>
             <TwoCols>
               <Field label="PRC license number" value={profile.prcLicenseNumber} onChange={(value) => setProfile({ ...profile, prcLicenseNumber: value })} />
@@ -198,6 +209,12 @@ export default function DoctorProfilePage() {
                 barangayCode: profile.barangayCode,
               }}
             />
+            <LocationPinPicker
+              defaultLatitude={profile.latitude}
+              defaultLongitude={profile.longitude}
+              title="Clinic map pin"
+              description="Pin the exact clinic or hospital entrance so physical-visit patients can open directions."
+            />
           </ProfileCard>
 
           <div className="xl:col-span-2">
@@ -231,12 +248,16 @@ function Field({
   onChange,
   type = "text",
   disabled = false,
+  inputMode,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange?: (value: string) => void;
   type?: string;
   disabled?: boolean;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
 }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-primary">
@@ -245,6 +266,8 @@ function Field({
         type={type}
         value={value}
         disabled={disabled}
+        inputMode={inputMode}
+        maxLength={maxLength}
         onChange={(event) => onChange?.(event.target.value)}
         className="h-11 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-3 text-sm outline-none disabled:bg-[#eee8dc] disabled:text-muted-foreground"
       />
@@ -272,4 +295,15 @@ function TextArea({
       />
     </label>
   );
+}
+
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  const parsed = Number(String(value ?? "").trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toPhilippineE164Input(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  const local = digits.replace(/^63/, "").replace(/^0/, "").slice(0, 10);
+  return local ? `+63${local}` : "";
 }

@@ -11,6 +11,9 @@ import {
   CreditCard,
   ExternalLink,
   FilePenLine,
+  MapPin,
+  Navigation,
+  Phone,
   Search,
   Video,
   XCircle,
@@ -96,6 +99,14 @@ export default function DoctorScheduleCalendarPage() {
 
       if (result.meetLink) {
         window.open(result.meetLink, "_blank", "noopener,noreferrer");
+      } else {
+        const appointment = result.appointment;
+        if (appointment.triage?.consultMethod === "cellular") {
+          window.open(`tel:${appointment.patientMobileNumber ?? ""}`, "_self");
+        }
+        if (appointment.triage?.consultMethod === "physical_visit") {
+          window.open(buildMapsDirectionsUrl(appointment), "_blank", "noopener,noreferrer");
+        }
       }
     } catch (error: unknown) {
       setActionError(
@@ -560,8 +571,8 @@ function DoctorConsultationRow({
         <div className="flex flex-wrap gap-2">
           {canJoinAppointment(appointment) ? (
             <Button className="h-10 rounded-xl" onClick={() => void onJoin(appointment._id)}>
-              <Video className="size-4" />
-              Join
+              {getConsultMethodIcon(appointment)}
+              {getConsultActionLabel(appointment)}
             </Button>
           ) : appointment.paymentPlan === "pay_now" &&
             appointment.paymentStatus !== "paid" &&
@@ -610,6 +621,34 @@ function DoctorConsultationRow({
           value={formatDoctorPayout(appointment)}
         />
       </div>
+
+      {appointment.triage?.consultMethod !== "google_meet" ? (
+        <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4 text-sm text-muted-foreground">
+          {appointment.triage?.consultMethod === "cellular" ? (
+            <p>
+              Phone session. Patient mobile:{" "}
+              <span className="font-semibold text-primary">
+                {appointment.patientMobileNumber ?? "Not provided"}
+              </span>
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Physical visit. Clinic:{" "}
+                <span className="font-semibold text-primary">
+                  {appointment.doctorLocation ?? appointment.doctorClinicOrHospital ?? "Clinic location"}
+                </span>
+              </p>
+              <Button asChild variant="outline" className="h-9 rounded-xl">
+                <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+                  <Navigation className="size-4" />
+                  Route
+                </Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#12324d]/10 pt-4">
         <p className="mr-auto text-sm text-muted-foreground">
@@ -1030,6 +1069,62 @@ function canJoinAppointment(appointment: Appointment) {
   }
 
   return appointment.paymentPlan !== "pay_now" || appointment.paymentStatus === "paid";
+}
+
+function getConsultActionLabel(appointment: Appointment) {
+  if (appointment.triage?.consultMethod === "cellular") {
+    return "Call patient";
+  }
+
+  if (appointment.triage?.consultMethod === "physical_visit") {
+    return "Open route";
+  }
+
+  return "Join";
+}
+
+function getConsultMethodIcon(appointment: Appointment) {
+  if (appointment.triage?.consultMethod === "cellular") {
+    return <Phone className="size-4" />;
+  }
+
+  if (appointment.triage?.consultMethod === "physical_visit") {
+    return <MapPin className="size-4" />;
+  }
+
+  return <Video className="size-4" />;
+}
+
+function buildMapsDirectionsUrl(appointment: Appointment) {
+  const params = new URLSearchParams({
+    api: "1",
+    origin:
+      formatCoordinatePair(appointment.patientLatitude, appointment.patientLongitude) ??
+      appointment.patientLocation ??
+      "",
+    destination:
+      formatCoordinatePair(appointment.doctorLatitude, appointment.doctorLongitude) ??
+      appointment.doctorLocation ??
+      appointment.doctorClinicOrHospital ??
+      appointment.doctorCityMunicipalityName ??
+      "",
+    travelmode: "driving",
+  });
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function formatCoordinatePair(latitude?: number, longitude?: number) {
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return undefined;
+  }
+
+  return `${latitude},${longitude}`;
 }
 
 function startOfDay(date: Date) {

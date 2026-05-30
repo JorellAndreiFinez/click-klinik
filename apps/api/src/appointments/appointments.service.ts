@@ -9,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { HydratedDocument, Model } from 'mongoose';
 import { CalendarService } from '../integrations/calendar/calendar.service';
+import { NotificationsService } from '../integrations/notifications/notifications.service';
 import { PaymentsService } from '../integrations/payments/payments.service';
 import { Patient } from '../patients/schemas/patient.schema';
 import { ScheduleSlot } from '../schedules/schemas/schedule.schema';
@@ -55,6 +56,7 @@ export class AppointmentsService {
     @InjectModel(Payout.name)
     private readonly payoutModel: Model<Payout>,
     private readonly calendarService: CalendarService,
+    private readonly notificationsService: NotificationsService,
     private readonly paymentsService: PaymentsService,
   ) {}
 
@@ -177,6 +179,7 @@ export class AppointmentsService {
         patientMobileNumber: patient.mobileNumber,
         referenceId: `ck-${randomId()}`,
       });
+      const consultMethod = dto.triage.consultMethod;
       const calendarEvent = await this.calendarService.createConsultationEvent({
         doctorEmail: doctor.professionalEmail,
         doctorName,
@@ -184,24 +187,44 @@ export class AppointmentsService {
         patientName,
         startsAt: selectedStartAt,
         endsAt: selectedEndAt,
-        summary: `Click Klinik teleconsult: ${patientName} with ${doctorName}`,
-        description:
-          'Telehealth consultation booked via Click Klinik. This consultation is guidance only and does not replace professional in-person emergency medical care.',
+        summary: `Click Klinik ${formatConsultMethod(consultMethod)}: ${patientName} with ${doctorName}`,
+        description: buildConsultationCalendarDescription({
+          consultMethod,
+          doctor,
+          patient,
+        }),
+        createMeet: consultMethod === 'google_meet',
       });
 
       const createdAppointment = await this.appointmentModel.create({
         patientId: String(patient._id),
         patientEmail: patient.email,
         patientName,
+        patientMobileNumber: patient.mobileNumber,
+        patientLocation: buildLocationLabel(patient),
+        patientRegionName: patient.regionName,
+        patientProvinceName: patient.provinceName,
+        patientCityMunicipalityName: patient.cityMunicipalityName,
+        patientBarangayName: patient.barangayName,
+        patientLatitude: patient.latitude,
+        patientLongitude: patient.longitude,
         doctorApplicationId: String(doctor._id),
         doctorEmail: doctor.professionalEmail,
         doctorName,
         specializationName: doctor.specializationName,
-        doctorLocation: doctor.location ?? doctor.clinicOrHospital,
+        doctorLocation: buildLocationLabel(doctor),
+        doctorClinicOrHospital: doctor.clinicOrHospital,
+        doctorMobileNumber: doctor.mobileNumber,
+        doctorRegionName: doctor.regionName,
+        doctorProvinceName: doctor.provinceName,
+        doctorCityMunicipalityName: doctor.cityMunicipalityName,
+        doctorBarangayName: doctor.barangayName,
+        doctorLatitude: doctor.latitude,
+        doctorLongitude: doctor.longitude,
         consultationCode: consultation.code,
         consultationLabel: consultation.label,
         triage: {
-          consultMethod: dto.triage.consultMethod,
+          consultMethod,
           chiefComplaint: dto.triage.chiefComplaint.trim(),
           detailedSymptoms: dto.triage.detailedSymptoms.trim(),
           onsetDate,
@@ -263,6 +286,21 @@ export class AppointmentsService {
       if (!appointmentWithPayout) {
         throw new NotFoundException('Consultation not found.');
       }
+
+      await Promise.all([
+        this.notificationsService.createForDoctor(String(doctor._id), {
+          type: 'appointment_booked',
+          title: 'New patient booking',
+          message: `${patientName} booked ${consultation.label} for ${formatDateTime(selectedStartAt)}.`,
+          href: '/doctor/schedule/calendar',
+        }),
+        this.notificationsService.createForPatient(String(patient._id), {
+          type: 'appointment_booked',
+          title: 'Consultation booked',
+          message: `Your appointment with ${doctorName} is scheduled for ${formatDateTime(selectedStartAt)}.`,
+          href: '/patient/appointments',
+        }),
+      ]);
 
       return appointmentWithPayout;
     } catch (error) {
@@ -458,6 +496,51 @@ export class AppointmentsService {
     return { payouts, totals };
   }
 
+  async claimDoctorPayouts(user: DecodedIdToken): Promise<DoctorPayoutSummary> {
+    const doctor = await this.getApprovedDoctor(user);
+    const doctorApplicationId = String(doctor._id);
+    const paidAt = new Date();
+
+    const availablePayouts = await this.payoutModel
+      .find({ doctorApplicationId, status: 'available' })
+      .exec();
+
+    if (availablePayouts.length === 0) {
+      return this.listDoctorPayouts(user);
+    }
+
+    const payoutIds = availablePayouts.map((payout) => getDocumentId(payout));
+    const appointmentIds = availablePayouts.map((payout) => payout.appointmentId);
+    const totalPayout = availablePayouts.reduce(
+      (sum, payout) => sum + payout.doctorPayoutPhp,
+      0,
+    );
+
+    await Promise.all([
+      this.payoutModel
+        .updateMany(
+          { _id: { $in: payoutIds } },
+          { $set: { status: 'paid_out', paidAt } },
+        )
+        .exec(),
+      this.appointmentModel
+        .updateMany(
+          { _id: { $in: appointmentIds } },
+          { $set: { doctorPayoutStatus: 'paid_out' } },
+        )
+        .exec(),
+    ]);
+
+    await this.notificationsService.createForDoctor(doctorApplicationId, {
+      type: 'payout',
+      title: 'Payout claimed',
+      message: `${formatPhp(totalPayout)} was marked as paid out in Xendit test flow.`,
+      href: '/doctor/dashboard',
+    });
+
+    return this.listDoctorPayouts(user);
+  }
+
   async updateStatus(
     user: DecodedIdToken,
     id: string,
@@ -514,6 +597,13 @@ export class AppointmentsService {
     if (!updated) {
       throw new NotFoundException('Consultation not found.');
     }
+
+    await this.notificationsService.createForPatient(appointment.patientId, {
+      type: 'appointment_status',
+      title: 'Consultation status updated',
+      message: `${appointment.doctorName} marked your consultation as ${nextStatus.replace(/_/g, ' ')}.`,
+      href: '/patient/appointments',
+    });
 
     return updated;
   }
@@ -715,6 +805,21 @@ export class AppointmentsService {
       throw new NotFoundException('Consultation not found.');
     }
 
+    await Promise.all([
+      this.notificationsService.createForPatient(updated.patientId, {
+        type: 'payment',
+        title: 'Payment confirmed',
+        message: `Your ${updated.consultationLabel} payment is now marked as paid.`,
+        href: '/patient/appointments',
+      }),
+      this.notificationsService.createForDoctor(updated.doctorApplicationId, {
+        type: 'payment',
+        title: 'Patient payment received',
+        message: `${updated.patientName} paid ${formatPhp(updated.totalFeePhp)}. Doctor payout is now available.`,
+        href: '/doctor/dashboard',
+      }),
+    ]);
+
     await this.createOrUpdatePayout(updated, now);
 
     return updated;
@@ -818,6 +923,13 @@ export class AppointmentsService {
     if (!updated) {
       throw new NotFoundException('Consultation not found.');
     }
+
+    await this.notificationsService.createForPatient(appointment.patientId, {
+      type: 'appointment_status',
+      title: 'Consultation cancelled',
+      message: 'Your consultation was cancelled and the schedule was released.',
+      href: '/patient/appointments',
+    });
 
     return updated;
   }
@@ -989,6 +1101,103 @@ function normalizeTextList(values: string[]): string[] {
     .filter(Boolean);
 }
 
+function formatConsultMethod(method: Appointment['triage']['consultMethod']): string {
+  if (method === 'physical_visit') {
+    return 'physical clinic visit';
+  }
+
+  if (method === 'cellular') {
+    return 'cellular phone consultation';
+  }
+
+  return 'Google Meet teleconsult';
+}
+
+function buildConsultationCalendarDescription(input: {
+  consultMethod: Appointment['triage']['consultMethod'];
+  doctor: Pick<
+    Doctor,
+    | 'clinicOrHospital'
+    | 'mobileNumber'
+    | 'location'
+    | 'barangayName'
+    | 'cityMunicipalityName'
+    | 'provinceName'
+    | 'regionName'
+    | 'latitude'
+    | 'longitude'
+  >;
+  patient: Pick<
+    Patient,
+    | 'mobileNumber'
+    | 'barangayName'
+    | 'cityMunicipalityName'
+    | 'provinceName'
+    | 'regionName'
+    | 'latitude'
+    | 'longitude'
+  >;
+}): string {
+  const lines = [
+    'Click Klinik consultation booking.',
+    'This tool provides guidance only and does not replace professional medical advice or emergency care.',
+    '',
+    `Consult method: ${formatConsultMethod(input.consultMethod)}`,
+  ];
+
+  if (input.consultMethod === 'physical_visit') {
+    lines.push(
+      `Clinic/Hospital: ${input.doctor.clinicOrHospital ?? 'Doctor clinic location'}`,
+      `Clinic address: ${buildLocationLabel(input.doctor) || 'See doctor profile'}`,
+      `Patient starting area: ${buildLocationLabel(input.patient) || 'Saved patient location'}`,
+      `Clinic map pin: ${formatGeoPin(input.doctor) || 'Not provided'}`,
+      `Patient map pin: ${formatGeoPin(input.patient) || 'Not provided'}`,
+    );
+  }
+
+  if (input.consultMethod === 'cellular') {
+    lines.push(
+      `Patient mobile: ${input.patient.mobileNumber}`,
+      `Doctor contact number: ${input.doctor.mobileNumber}`,
+      'The doctor and patient should keep their phones reachable at the scheduled time.',
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function formatGeoPin(profile: { latitude?: number; longitude?: number }): string {
+  if (
+    typeof profile.latitude !== 'number' ||
+    typeof profile.longitude !== 'number'
+  ) {
+    return '';
+  }
+
+  return `${profile.latitude}, ${profile.longitude}`;
+}
+
+function buildLocationLabel(
+  profile: {
+    barangayName?: string;
+    cityMunicipalityName?: string;
+    provinceName?: string;
+    regionName?: string;
+    location?: string;
+  },
+): string {
+  return [
+    profile.location,
+    profile.barangayName,
+    profile.cityMunicipalityName,
+    profile.provinceName,
+    profile.regionName,
+  ]
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(', ');
+}
+
 function assertRefundWindowOpen(appointment: Appointment): void {
   const createdAt = getDocumentDate(appointment, 'createdAt');
   const deadline = new Date(createdAt.getTime() + PAY_NOW_PAYMENT_WINDOW_MS);
@@ -1041,6 +1250,22 @@ function calculateConsultationRevenue(totalFeePhp: number): {
     platformCommissionPhp,
     doctorPayoutPhp: Math.max(totalFeePhp - platformCommissionPhp, 0),
   };
+}
+
+function formatDateTime(value: Date): string {
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Manila',
+  }).format(value);
+}
+
+function formatPhp(value: number): string {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function isPaidPaymentStatus(status?: string): boolean {

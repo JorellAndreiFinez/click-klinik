@@ -81,6 +81,9 @@ export class PatientsService {
               cityMunicipalityName: dto.cityMunicipalityName.trim(),
               barangayCode: dto.barangayCode.trim(),
               barangayName: dto.barangayName.trim(),
+              latitude: dto.latitude,
+              longitude: dto.longitude,
+              geoLocationUpdatedAt: hasGeoPin(dto) ? new Date() : undefined,
               privacyPolicyAccepted: dto.privacyPolicyAccepted,
               healthDataProcessingAccepted: dto.healthDataProcessingAccepted,
               aiAssistanceAccepted: dto.aiAssistanceAccepted,
@@ -188,6 +191,10 @@ export class PatientsService {
 
 function sanitizeItems(items: string[]): string[] {
   return items.map((item) => item.trim()).filter(Boolean);
+}
+
+function hasGeoPin(dto: UpsertPatientProfileDto): boolean {
+  return typeof dto.latitude === 'number' && typeof dto.longitude === 'number';
 }
 
 function isMongoDuplicateKeyError(error: unknown): boolean {

@@ -169,17 +169,14 @@ export async function saveMyDoctorAppointmentCertificate(
     doctorSignatureText?: string;
   },
 ): Promise<MedicalCertificate> {
-  const savedRecord = await saveMyDoctorAppointmentRecord(user, appointmentId, {
-    doctorSignatureDataUrl: input.doctorSignatureDataUrl,
-    doctorSignatureText: input.doctorSignatureText,
-    medicalCertificate: input,
-  });
-
-  if (!savedRecord.medicalCertificate) {
-    throw new Error("Medical certificate was not saved. Please restart the API server and try again.");
-  }
-
-  return savedRecord.medicalCertificate;
+  return medicalRecordsRequest<MedicalCertificate>(
+    user,
+    `/medical-records/me/doctor/appointments/${appointmentId}/certificate`,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 async function medicalRecordsRequest<T>(

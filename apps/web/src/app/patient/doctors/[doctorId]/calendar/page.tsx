@@ -582,7 +582,7 @@ export default function PatientDoctorCalendarPage() {
                               Complete your 3-step triage first
                             </h2>
                             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                              This helps the doctor understand your symptoms before the Google Meet invite and payment are created.
+                              This helps the doctor understand your symptoms before the appointment, payment, and visit instructions are created.
                             </p>
                           </div>
                           <Badge className={triageCompleted ? "bg-emerald-600" : "bg-amber-500"}>
@@ -833,6 +833,7 @@ export default function PatientDoctorCalendarPage() {
                           <TimeSlotCard
                             key={slot.id}
                             slot={slot}
+                            consultMethod={triage.consultMethod}
                             selected={selectedSlotId === slot.id}
                             disabled={isPastBookableSlot(slot)}
                             onSelect={() => setSelectedSlotId(slot.id)}
@@ -886,6 +887,14 @@ export default function PatientDoctorCalendarPage() {
                           { label: "Doctor", value: doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : "—" },
                           { label: "Consultation", value: selectedConsultation?.label ?? "Choose consultation type" },
                         ]}
+                      />
+                      <SummaryBlock
+                        title="Consult method"
+                        rows={buildConsultMethodRows({
+                          doctor,
+                          patient: profile,
+                          method: triage.consultMethod,
+                        })}
                       />
                       <SummaryBlock
                         title="Date & time"
@@ -977,6 +986,88 @@ function SummaryBlock({
       </div>
     </section>
   );
+}
+
+function buildConsultMethodRows({
+  doctor,
+  patient,
+  method,
+}: {
+  doctor: PublicDoctorProfile | null;
+  patient: PatientProfile;
+  method: TriageForm["consultMethod"];
+}): Array<{ label: string; value: string; strong?: boolean }> {
+  if (method === "physical_visit") {
+    const patientLocation = buildPatientLocation(patient);
+    const doctorLocation = buildDoctorLocation(doctor);
+    return [
+      { label: "Method", value: "Physical clinic visit", strong: true },
+      {
+        label: "Clinic/Hospital",
+        value: doctor?.clinicOrHospital || "Doctor clinic location",
+      },
+      { label: "Clinic address", value: doctorLocation },
+      {
+        label: "Route",
+        value:
+          patientLocation && doctorLocation
+            ? "Google Maps directions available after booking"
+            : "Complete profile location for route guidance",
+      },
+    ];
+  }
+
+  if (method === "cellular") {
+    return [
+      { label: "Method", value: "Cellular phone consultation", strong: true },
+      { label: "Patient mobile", value: patient.mobileNumber },
+      { label: "Doctor mobile", value: "Shown to confirmed patient and doctor" },
+    ];
+  }
+
+  return [
+    { label: "Method", value: "Google Meet teleconsult", strong: true },
+    { label: "Meeting", value: "Meet link is generated in the calendar invite" },
+  ];
+}
+
+function buildPatientLocation(patient: PatientProfile): string {
+  return [
+    patient.barangayName,
+    patient.cityMunicipalityName,
+    patient.provinceName,
+    patient.regionName,
+    "Philippines",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildDoctorLocation(doctor: PublicDoctorProfile | null): string {
+  return [
+    doctor?.clinicOrHospital,
+    doctor?.location,
+    doctor?.barangayName,
+    doctor?.cityMunicipalityName,
+    doctor?.provinceName,
+    doctor?.regionName,
+    "Philippines",
+  ]
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(", ");
+}
+
+function getSlotMethodCopy(method: TriageForm["consultMethod"]) {
+  if (method === "physical_visit") {
+    return "Clinic visit details will be saved after booking.";
+  }
+
+  if (method === "cellular") {
+    return "Phone consultation details will be saved after booking.";
+  }
+
+  return "Google Meet invite will be created after booking.";
 }
 
 function PaymentOptionCard({
@@ -1183,11 +1274,13 @@ function expandAvailabilityToHalfHourSlots(
 
 function TimeSlotCard({
   slot,
+  consultMethod,
   selected,
   disabled,
   onSelect,
 }: {
   slot: BookableTimeSlot;
+  consultMethod: TriageForm["consultMethod"];
   selected: boolean;
   disabled: boolean;
   onSelect: () => void;
@@ -1219,7 +1312,7 @@ function TimeSlotCard({
           >
             {disabled
               ? "This time has already passed."
-              : "Google Meet invite will be created after booking."}
+              : getSlotMethodCopy(consultMethod)}
           </p>
         </div>
         <span

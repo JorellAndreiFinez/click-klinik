@@ -7,6 +7,12 @@ export type DiscoverDoctor = {
   specializationName: string;
   clinicOrHospital?: string;
   location?: string;
+  regionName?: string;
+  provinceName?: string;
+  cityMunicipalityName?: string;
+  barangayName?: string;
+  latitude?: number;
+  longitude?: number;
   yearsOfExperience: number;
   bio: string;
   displayOnPublicWebsite: boolean;

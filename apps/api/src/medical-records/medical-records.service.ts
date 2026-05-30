@@ -9,6 +9,7 @@ import { HydratedDocument, Model } from 'mongoose';
 import { Appointment } from '../appointments/schemas/appointment.schema';
 import { Doctor } from '../doctors/schemas/doctor.schema';
 import { HealthMonitoringLog } from '../health-monitoring/schemas/health-monitoring-log.schema';
+import { NotificationsService } from '../integrations/notifications/notifications.service';
 import { Patient } from '../patients/schemas/patient.schema';
 import { UpsertMedicalCertificateDto } from './dto/upsert-medical-certificate.dto';
 import { UpsertMedicalRecordDto } from './dto/upsert-medical-record.dto';
@@ -91,6 +92,7 @@ export class MedicalRecordsService {
     @InjectModel(Doctor.name) private readonly doctorModel: Model<Doctor>,
     @InjectModel(HealthMonitoringLog.name)
     private readonly monitoringModel: Model<HealthMonitoringLog>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async listDoctorPatients(user: DecodedIdToken): Promise<DoctorPatientListItem[]> {
@@ -291,6 +293,8 @@ export class MedicalRecordsService {
         .exec();
     }
 
+    await this.notifyPatientForRecordUpdate(appointment, dto, Boolean(certificate));
+
     return savedRecord;
   }
 
@@ -365,7 +369,70 @@ export class MedicalRecordsService {
       throw new NotFoundException('Medical certificate was not saved.');
     }
 
+    await this.notificationsService.createForPatient(appointment.patientId, {
+      type: 'medical_record',
+      title: 'Medical certificate issued',
+      message: `${appointment.doctorName} issued a medical certificate for your consultation.`,
+      href: '/patient/records',
+    });
+
     return savedCertificate;
+  }
+
+  private async notifyPatientForRecordUpdate(
+    appointment: Appointment,
+    dto: UpsertMedicalRecordDto,
+    certificateSaved: boolean,
+  ): Promise<void> {
+    const notifications: Array<Promise<unknown>> = [];
+    const hasVisibleNotes =
+      typeof dto.consultationSummary === 'string' ||
+      typeof dto.publicNote === 'string' ||
+      typeof dto.recommendations === 'string';
+
+    if (hasVisibleNotes) {
+      notifications.push(
+        this.notificationsService.createForPatient(appointment.patientId, {
+          type: 'medical_record',
+          title: 'Consultation notes updated',
+          message: `${appointment.doctorName} shared consultation notes from your visit.`,
+          href: '/patient/records',
+        }),
+      );
+    }
+
+    if (dto.prescriptions !== undefined) {
+      const prescriptionCount = dto.prescriptions.filter((item) =>
+        item.medicine?.trim(),
+      ).length;
+      notifications.push(
+        this.notificationsService.createForPatient(appointment.patientId, {
+          type: 'medical_record',
+          title:
+            prescriptionCount > 0
+              ? 'Prescription updated'
+              : 'Prescription removed',
+          message:
+            prescriptionCount > 0
+              ? `${appointment.doctorName} updated ${prescriptionCount} prescription item${prescriptionCount === 1 ? '' : 's'} for your consultation.`
+              : `${appointment.doctorName} removed prescription items from your consultation record.`,
+          href: '/patient/records',
+        }),
+      );
+    }
+
+    if (certificateSaved) {
+      notifications.push(
+        this.notificationsService.createForPatient(appointment.patientId, {
+          type: 'medical_record',
+          title: 'Medical certificate issued',
+          message: `${appointment.doctorName} issued a medical certificate for your consultation.`,
+          href: '/patient/records',
+        }),
+      );
+    }
+
+    await Promise.all(notifications);
   }
 
   async getPatientRecords(user: DecodedIdToken): Promise<PatientRecordsView> {

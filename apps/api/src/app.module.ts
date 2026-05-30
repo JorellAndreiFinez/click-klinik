@@ -9,6 +9,7 @@ import { SchedulesModule } from './schedules/schedules.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { MedicalRecordsModule } from './medical-records/medical-records.module';
 import { HealthMonitoringModule } from './health-monitoring/health-monitoring.module';
+import { NotificationsModule } from './integrations/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { HealthMonitoringModule } from './health-monitoring/health-monitoring.mo
     AppointmentsModule,
     MedicalRecordsModule,
     HealthMonitoringModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

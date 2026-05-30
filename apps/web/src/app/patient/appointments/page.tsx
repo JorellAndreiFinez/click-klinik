@@ -13,6 +13,9 @@ import {
   CreditCard,
   ExternalLink,
   HeartPulse,
+  MapPin,
+  Navigation,
+  Phone,
   Search,
   Star,
   Video,
@@ -924,13 +927,34 @@ function AppointmentRow({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {canJoinAppointment(appointment) ? (
+            {canJoinAppointment(appointment) && isGoogleMeetAppointment(appointment) ? (
               <Button
                 className="h-10 rounded-xl"
                 onClick={() => void onJoin(appointment._id)}
               >
                 <Video className="size-4" />
                 Join
+              </Button>
+            ) : canJoinAppointment(appointment) && isCellularAppointment(appointment) ? (
+              appointment.doctorMobileNumber ? (
+                <Button asChild className="h-10 rounded-xl">
+                  <Link href={`tel:${appointment.doctorMobileNumber}`}>
+                    <Phone className="size-4" />
+                    Call doctor
+                  </Link>
+                </Button>
+              ) : (
+                <Button className="h-10 rounded-xl" disabled>
+                  <Phone className="size-4" />
+                  Phone consult
+                </Button>
+              )
+            ) : canJoinAppointment(appointment) && isPhysicalVisitAppointment(appointment) ? (
+              <Button asChild className="h-10 rounded-xl">
+                <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+                  <Navigation className="size-4" />
+                  Open route
+                </Link>
               </Button>
             ) : appointment.paymentPlan === "pay_now" &&
               appointment.paymentStatus !== "paid" &&
@@ -983,6 +1007,10 @@ function AppointmentRow({
             value={formatAppointmentFee(appointment.totalFeePhp)}
           />
         </div>
+
+        {appointment.triage?.consultMethod !== "google_meet" ? (
+          <ConsultMethodPanel appointment={appointment} />
+        ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#12324d]/10 pt-4">
           <p className="mr-auto text-sm text-muted-foreground">
@@ -1060,6 +1088,79 @@ function SummaryPill({ label, value }: { label: string; value: number }) {
         {label}
       </p>
       <p className="mt-2 text-xl font-bold text-primary">{value}</p>
+    </div>
+  );
+}
+
+function ConsultMethodPanel({ appointment }: { appointment: Appointment }) {
+  if (isCellularAppointment(appointment)) {
+    return (
+      <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-bold text-primary">
+              <Phone className="size-4" />
+              Cellular phone consultation
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Keep your phone reachable. Doctor contact:{" "}
+              <span className="font-semibold text-primary">
+                {appointment.doctorMobileNumber ?? "shown when confirmed"}
+              </span>
+            </p>
+          </div>
+          {appointment.doctorMobileNumber ? (
+            <Button asChild variant="outline" className="h-10 rounded-xl">
+              <Link href={`tel:${appointment.doctorMobileNumber}`}>Call now</Link>
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (isPhysicalVisitAppointment(appointment)) {
+    const patientLocation = appointment.patientLocation ?? "Saved patient location";
+    const doctorLocation =
+      appointment.doctorLocation ??
+      appointment.doctorClinicOrHospital ??
+      "Doctor clinic location";
+    const proximity = getLocationProximityLabel(appointment);
+
+    return (
+      <div className="mt-4 rounded-xl border border-[#12324d]/10 bg-[#fcfaf5] px-4 py-4">
+        <p className="flex items-center gap-2 text-sm font-bold text-primary">
+          <MapPin className="size-4" />
+          Physical visit route
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+          <LocationPoint label="Start" value={patientLocation} />
+          <span className="hidden text-muted-foreground md:block">to</span>
+          <LocationPoint label="Clinic" value={doctorLocation} />
+        </div>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">{proximity}</p>
+          <Button asChild variant="outline" className="h-10 rounded-xl">
+            <Link href={buildMapsDirectionsUrl(appointment)} target="_blank">
+              <Navigation className="size-4" />
+              View in Google Maps
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function LocationPoint({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#12324d]/10 bg-white px-3 py-3">
+      <p className="text-[10px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-semibold text-primary">{value}</p>
     </div>
   );
 }
@@ -1444,6 +1545,117 @@ function canJoinAppointment(appointment: Appointment) {
   return (
     appointment.paymentPlan !== "pay_now" || appointment.paymentStatus === "paid"
   );
+}
+
+function isGoogleMeetAppointment(appointment: Appointment) {
+  return (appointment.triage?.consultMethod ?? "google_meet") === "google_meet";
+}
+
+function isCellularAppointment(appointment: Appointment) {
+  return appointment.triage?.consultMethod === "cellular";
+}
+
+function isPhysicalVisitAppointment(appointment: Appointment) {
+  return appointment.triage?.consultMethod === "physical_visit";
+}
+
+function buildMapsDirectionsUrl(appointment: Appointment) {
+  const origin = formatCoordinatePair(
+    appointment.patientLatitude,
+    appointment.patientLongitude,
+  ) ?? appointment.patientLocation ?? "";
+  const destination =
+    formatCoordinatePair(appointment.doctorLatitude, appointment.doctorLongitude) ??
+    appointment.doctorLocation ??
+    appointment.doctorClinicOrHospital ??
+    appointment.doctorCityMunicipalityName ??
+    "";
+
+  const params = new URLSearchParams({
+    api: "1",
+    origin,
+    destination,
+    travelmode: "driving",
+  });
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function getLocationProximityLabel(appointment: Appointment) {
+  const distanceKm = calculateDistanceKm(
+    appointment.patientLatitude,
+    appointment.patientLongitude,
+    appointment.doctorLatitude,
+    appointment.doctorLongitude,
+  );
+
+  if (typeof distanceKm === "number") {
+    return `Estimated straight-line distance is ${distanceKm.toFixed(1)} km. Open Google Maps for the exact driving route.`;
+  }
+
+  if (
+    appointment.patientBarangayName &&
+    appointment.doctorBarangayName &&
+    appointment.patientBarangayName === appointment.doctorBarangayName
+  ) {
+    return "Same barangay based on saved profile. Google Maps can show exact route and distance.";
+  }
+
+  if (
+    appointment.patientCityMunicipalityName &&
+    appointment.doctorCityMunicipalityName &&
+    appointment.patientCityMunicipalityName === appointment.doctorCityMunicipalityName
+  ) {
+    return "Same city/municipality based on saved profile. Open Google Maps for exact distance.";
+  }
+
+  return "Open Google Maps to calculate exact travel distance from your saved location to the clinic.";
+}
+
+function formatCoordinatePair(latitude?: number, longitude?: number) {
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return undefined;
+  }
+
+  return `${latitude},${longitude}`;
+}
+
+function calculateDistanceKm(
+  startLatitude?: number,
+  startLongitude?: number,
+  endLatitude?: number,
+  endLongitude?: number,
+) {
+  if (
+    typeof startLatitude !== "number" ||
+    typeof startLongitude !== "number" ||
+    typeof endLatitude !== "number" ||
+    typeof endLongitude !== "number"
+  ) {
+    return undefined;
+  }
+
+  const earthRadiusKm = 6371;
+  const deltaLatitude = toRadians(endLatitude - startLatitude);
+  const deltaLongitude = toRadians(endLongitude - startLongitude);
+  const startLatRad = toRadians(startLatitude);
+  const endLatRad = toRadians(endLatitude);
+  const value =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(startLatRad) *
+      Math.cos(endLatRad) *
+      Math.sin(deltaLongitude / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
 }
 
 function canCancelAppointment(appointment: Appointment) {

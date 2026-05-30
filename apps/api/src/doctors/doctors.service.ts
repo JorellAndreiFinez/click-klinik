@@ -109,6 +109,9 @@ export class DoctorsService {
             cityMunicipalityName: dto.cityMunicipalityName.trim(),
             barangayCode: dto.barangayCode.trim(),
             barangayName: dto.barangayName.trim(),
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            geoLocationUpdatedAt: hasGeoPin(dto) ? new Date() : undefined,
             yearsOfExperience: dto.yearsOfExperience,
             bio: dto.bio.trim(),
             displayOnPublicWebsite: dto.displayOnPublicWebsite,
@@ -178,6 +181,9 @@ export class DoctorsService {
         cityMunicipalityName: dto.cityMunicipalityName.trim(),
         barangayCode: dto.barangayCode.trim(),
         barangayName: dto.barangayName.trim(),
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        geoLocationUpdatedAt: hasGeoPin(dto) ? new Date() : undefined,
         yearsOfExperience: dto.yearsOfExperience,
         bio: dto.bio.trim(),
         displayOnPublicWebsite: dto.displayOnPublicWebsite,
@@ -310,6 +316,12 @@ export class DoctorsService {
         'specializationName',
         'clinicOrHospital',
         'location',
+        'regionName',
+        'provinceName',
+        'cityMunicipalityName',
+        'barangayName',
+        'latitude',
+        'longitude',
         'yearsOfExperience',
         'bio',
         'displayOnPublicWebsite',
@@ -360,6 +372,12 @@ export class DoctorsService {
         'specializationName',
         'clinicOrHospital',
         'location',
+        'regionName',
+        'provinceName',
+        'cityMunicipalityName',
+        'barangayName',
+        'latitude',
+        'longitude',
         'yearsOfExperience',
         'bio',
         'displayOnPublicWebsite',
@@ -594,6 +612,8 @@ export class DoctorsService {
         'specializationName',
         'clinicOrHospital',
         'location',
+        'latitude',
+        'longitude',
         'yearsOfExperience',
         'bio',
         'displayOnPublicWebsite',
@@ -668,6 +688,12 @@ function getSpecializationMatchCondition(
       })),
     ],
   };
+}
+
+function hasGeoPin(
+  dto: CreateDoctorApplicationDto | UpdateDoctorProfileDto,
+): boolean {
+  return typeof dto.latitude === 'number' && typeof dto.longitude === 'number';
 }
 
 function escapeRegex(value: string): string {

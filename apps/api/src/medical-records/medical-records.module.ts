@@ -7,6 +7,7 @@ import {
   HealthMonitoringLog,
   HealthMonitoringLogSchema,
 } from '../health-monitoring/schemas/health-monitoring-log.schema';
+import { NotificationsModule } from '../integrations/notifications/notifications.module';
 import { Patient, PatientSchema } from '../patients/schemas/patient.schema';
 import { MedicalRecordsController } from './medical-records.controller';
 import { MedicalRecordsService } from './medical-records.service';
@@ -27,6 +28,7 @@ import { MedicalRecord, MedicalRecordSchema } from './schemas/medical-record.sch
       { name: HealthMonitoringLog.name, schema: HealthMonitoringLogSchema },
     ]),
     AuthModule,
+    NotificationsModule,
   ],
   controllers: [MedicalRecordsController],
   providers: [MedicalRecordsService],

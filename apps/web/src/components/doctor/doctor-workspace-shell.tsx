@@ -16,9 +16,10 @@ import {
   Stethoscope,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { WorkspaceNotifications } from "@/components/workspace-notifications";
 import { cn } from "@/lib/utils";
 import { useDoctorWorkspace } from "@/features/doctor-workspace/doctor-workspace-provider";
 
@@ -75,6 +76,16 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
   const { configured, doctor, loading, message, signOutDoctor } =
     useDoctorWorkspace();
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const syncCollapsed = () => setCollapsed(mediaQuery.matches);
+
+    syncCollapsed();
+    mediaQuery.addEventListener("change", syncCollapsed);
+
+    return () => mediaQuery.removeEventListener("change", syncCollapsed);
+  }, []);
+
   if (loading || !doctor) {
     return (
       <main className="clinic-grid flex min-h-screen items-center justify-center px-5">
@@ -96,16 +107,16 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
   const displayName = `Dr. ${doctor.firstName} ${doctor.lastName}${doctor.suffix ? `, ${doctor.suffix}` : ""}`;
 
   return (
-    <main className="min-h-screen bg-[#f7f2e8]">
+    <main className="min-h-dvh bg-[#f7f2e8]">
       <div
         className={cn(
-          "grid min-h-screen",
+          "grid min-h-dvh",
           collapsed
-            ? "grid-cols-[82px_minmax(0,1fr)]"
+            ? "grid-cols-[72px_minmax(0,1fr)] sm:grid-cols-[82px_minmax(0,1fr)]"
             : "grid-cols-[196px_minmax(0,1fr)]",
         )}
       >
-        <aside className="sticky top-0 flex h-screen flex-col self-start overflow-hidden border-r border-white/10 bg-[#07304a] px-3.5 py-4 text-primary-foreground shadow-[18px_0_60px_-48px_rgba(8,43,69,0.9)]">
+        <aside className="sticky top-0 flex h-dvh min-h-dvh flex-col self-start overflow-hidden border-r border-white/10 bg-[#07304a] px-2.5 py-3 text-primary-foreground shadow-[18px_0_60px_-48px_rgba(8,43,69,0.9)] sm:px-3.5 sm:py-4">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_50%_0%,rgba(255,217,46,0.16),transparent_62%)]" />
           <div className="relative">
             <Link href="/doctor/dashboard" className="block w-fit">
@@ -134,7 +145,7 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
             </p>
           </div>
 
-          <nav className="relative mt-6 grid gap-2">
+          <nav className="relative mt-6 grid flex-1 content-start gap-2 overflow-y-auto pr-0.5">
             {workspaceLinks.map((link) => {
               const active =
                 pathname === link.href ||
@@ -171,7 +182,7 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <div className="relative mt-auto pt-4">
+          <div className="relative mt-auto shrink-0 pt-3">
             <Button
               variant="ghost"
               onClick={() => setCollapsed((current) => !current)}
@@ -195,6 +206,7 @@ export function DoctorWorkspaceShell({ children }: { children: ReactNode }) {
           {children}
         </section>
       </div>
+      <WorkspaceNotifications />
     </main>
   );
 }

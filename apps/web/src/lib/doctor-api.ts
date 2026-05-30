@@ -20,6 +20,8 @@ export type DoctorApplication = {
   cityMunicipalityName: string;
   barangayCode: string;
   barangayName: string;
+  latitude?: number;
+  longitude?: number;
   yearsOfExperience: number;
   bio: string;
   displayOnPublicWebsite: boolean;
@@ -45,6 +47,8 @@ export type DoctorApplicationInput = {
   cityMunicipalityName: string;
   barangayCode: string;
   barangayName: string;
+  latitude?: number;
+  longitude?: number;
   yearsOfExperience: number;
   bio: string;
   displayOnPublicWebsite: boolean;
